@@ -1,0 +1,25 @@
+{
+  "name": "web3-cli-wallet",
+  "version": "1.0.0",
+  "description": "CLI Wallet for blockchain interaction (key generation, airdrops, txns)",
+  "main": "index.js",
+  "scripts": {
+    "test": "echo \"Error: no test specified\" && exit 1"
+  },
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/RAHULDINDIGALA-32/web3-cli-wallet.git"
+  },
+  "keywords": [],
+  "author": "",
+  "license": "ISC",
+  "type": "commonjs",
+  "bugs": {
+    "url": "https://github.com/RAHULDINDIGALA-32/web3-cli-wallet/issues"
+  },
+  "homepage": "https://github.com/RAHULDINDIGALA-32/web3-cli-wallet#readme",
+  "dependencies": {
+    "dotenv": "^17.2.2",
+    "ethers": "^6.15.0"
+  }
+}
