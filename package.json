@@ -1,25 +1,61 @@
 {
   "name": "web3-cli-wallet",
   "version": "1.0.0",
-  "description": "CLI Wallet for blockchain interaction (key generation, airdrops, txns)",
-  "main": "index.js",
+  "description": "A secure, feature-rich CLI HD wallet for Ethereum testnets with encrypted local storage, transaction history, and developer-friendly tools",
+  "main": "dist/index.js",
+  "type": "module",
+  "bin": {
+    "web3-wallet": "./dist/index.js",
+    "cli-wallet": "./dist/index.js"
+  },
   "scripts": {
+    "start": "tsc && node dist/index.js",
+    "build": "tsc",
+    "dev": "tsc --watch",
+    "prepublishOnly": "npm run build",
     "test": "echo \"Error: no test specified\" && exit 1"
   },
+  "files": [
+    "dist/**/*",
+    "README.md",
+    "LICENSE"
+  ],
   "repository": {
     "type": "git",
     "url": "git+https://github.com/RAHULDINDIGALA-32/web3-cli-wallet.git"
   },
-  "keywords": [],
-  "author": "",
-  "license": "ISC",
-  "type": "commonjs",
+  "keywords": [
+    "ethereum",
+    "wallet",
+    "cli",
+    "hd-wallet",
+    "blockchain",
+    "web3",
+    "crypto",
+    "sepolia",
+    "goerli",
+    "testnet",
+    "encryption",
+    "security",
+    "developer-tools"
+  ],
+  "author": "RAHUL DINDIGALA",
+  "license": "MIT",
   "bugs": {
     "url": "https://github.com/RAHULDINDIGALA-32/web3-cli-wallet/issues"
   },
   "homepage": "https://github.com/RAHULDINDIGALA-32/web3-cli-wallet#readme",
+  "engines": {
+    "node": ">=18.0.0"
+  },
   "dependencies": {
     "dotenv": "^17.2.2",
-    "ethers": "^6.15.0"
+    "ethers": "^6.15.0",
+    "inquirer": "^12.9.4"
+  },
+  "devDependencies": {
+    "@types/inquirer": "^9.0.9",
+    "@types/node": "^24.3.1",
+    "typescript": "^5.9.2"
   }
 }
