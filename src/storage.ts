@@ -121,23 +121,27 @@ class SecureStorage {
     }
 
     private decrypt(encryptedData: string, key: Buffer): string {
-        const parts = encryptedData.split(':');
-        if (parts.length !== 3) {
-            throw new Error('Invalid encrypted data format');
+        try {
+            const parts = encryptedData.split(':');
+            if (parts.length !== 3) {
+                throw new Error('Invalid encrypted data format');
+            }
+            
+            const iv = Buffer.from(parts[0]!, 'hex');
+            const tag = Buffer.from(parts[1]!, 'hex');
+            const encrypted = parts[2]!;
+            
+            const decipher = crypto.createDecipheriv(ALGORITHM, key, iv);
+            decipher.setAAD(Buffer.from('wallet-storage', 'utf8'));
+            decipher.setAuthTag(tag);
+            
+            let decrypted = decipher.update(encrypted, 'hex', 'utf8');
+            decrypted += decipher.final('utf8');
+            
+            return decrypted;
+        } catch (error) {
+            throw new Error('Decryption failed: Invalid master password or corrupted data');
         }
-        
-        const iv = Buffer.from(parts[0]!, 'hex');
-        const tag = Buffer.from(parts[1]!, 'hex');
-        const encrypted = parts[2]!;
-        
-        const decipher = crypto.createDecipheriv(ALGORITHM, key, iv);
-        decipher.setAAD(Buffer.from('wallet-storage', 'utf8'));
-        decipher.setAuthTag(tag);
-        
-        let decrypted = decipher.update(encrypted, 'hex', 'utf8');
-        decrypted += decipher.final('utf8');
-        
-        return decrypted;
     }
 
     async setMasterPassword(password: string): Promise<void> {
@@ -158,12 +162,17 @@ class SecureStorage {
             
             const saltHex = fs.readFileSync(saltFile, 'utf8');
             const salt = Buffer.from(saltHex, 'hex');
-            this.masterKey = this.deriveKey(password, salt);
+            const testKey = this.deriveKey(password, salt);
             
-            // Test decryption with a dummy operation
-            this.encrypt('test', this.masterKey);
+            // Test decryption with a dummy operation to verify the key is correct
+            this.encrypt('test', testKey);
+            
+            // Only set masterKey if the test passed
+            this.masterKey = testKey;
             return true;
         } catch (error) {
+            // Don't set masterKey if password is wrong
+            this.masterKey = null;
             return false;
         }
     }
@@ -391,6 +400,23 @@ class SecureStorage {
         } catch (error) {
             console.error('Failed to clear data:', error);
         }
+    }
+
+    // Public method to encrypt data
+    public encryptData(data: string): string {
+        if (!this.masterKey) {
+            throw new Error('Master password not set');
+        }
+        return this.encrypt(data, this.masterKey);
+    }
+
+    // Public method to get master key
+    public     getMasterKey(): Buffer | null {
+        return this.masterKey;
+    }
+
+    clearMasterKey(): void {
+        this.masterKey = null;
     }
 
     getConfig(): WalletConfig {

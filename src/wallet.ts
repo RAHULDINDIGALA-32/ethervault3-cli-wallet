@@ -8,89 +8,110 @@ import * as crypto from "crypto";
 let currentMnemonic = "";
 let currentWalletId: string | null = null;
 
+// Error handling utilities
+function handleWalletError(error: any, context: string): void {
+    console.log(`\n❌ Error in ${context}:`);
+    console.log(error.message || error);
+    console.log("\n🔄 Returning to main menu...\n");
+}
+
+async function safeWalletExecute<T>(operation: () => Promise<T>, context: string): Promise<T | null> {
+    try {
+        return await operation();
+    } catch (error) {
+        handleWalletError(error, context);
+        return null;
+    }
+}
+
 export async function createWallet() {
-    console.log("\n=== Create New Wallet ===");
-    
-    const wallet = HDNodeWallet.createRandom();
-    currentMnemonic = wallet.mnemonic?.phrase.trim() || "";
+    try {
+        console.log("\n=== Create New Wallet ===");
+        
+        const wallet = HDNodeWallet.createRandom();
+        currentMnemonic = wallet.mnemonic?.phrase.trim() || "";
 
-    console.log("\nWallet created successfully!");
-    console.log("-------------------------");
-    console.log("Mnemonic Phrase:\n", wallet.mnemonic?.phrase);
-    console.log("Address:\n", wallet.address);
-    console.log("Public Key:\n", wallet.publicKey);
-    console.log("Private Key:\n", wallet.privateKey);
-    console.log("-------------------------\n");
+        console.log("\nWallet created successfully!");
+        console.log("-------------------------");
+        console.log("Mnemonic Phrase:\n", wallet.mnemonic?.phrase);
+        console.log("Address:\n", wallet.address);
+        console.log("Public Key:\n", wallet.publicKey);
+        console.log("Private Key:\n", wallet.privateKey);
+        console.log("-------------------------\n");
 
-    // Ask if user wants to save the wallet
-    const saveAnswer = await inquirer.prompt([
-        {
-            type: "confirm",
-            name: "save",
-            message: "Do you want to save this wallet securely?",
-            default: true
-        }
-    ]);
-
-    if (saveAnswer.save) {
-        const nameAnswer = await inquirer.prompt([
+        // Ask if user wants to save the wallet
+        const saveAnswer = await inquirer.prompt([
             {
-                type: "input",
-                name: "name",
-                message: "Enter a name for this wallet:",
-                validate: (input: string) => {
-                    if (!input || input.trim().length === 0) {
-                        return "Please enter a wallet name.";
-                    }
-                    return true;
-                }
+                type: "confirm",
+                name: "save",
+                message: "Do you want to save this wallet securely?",
+                default: true
             }
         ]);
 
-        try {
-            currentWalletId = await secureStorage.saveWallet(wallet, nameAnswer.name.trim());
-            console.log("✅ Wallet saved securely!");
-        } catch (error) {
-            console.log("❌ Failed to save wallet:", error);
-        }
-    }
+        if (saveAnswer.save) {
+            const nameAnswer = await inquirer.prompt([
+                {
+                    type: "input",
+                    name: "name",
+                    message: "Enter a name for this wallet:",
+                    validate: (input: string) => {
+                        if (!input || input.trim().length === 0) {
+                            return "Please enter a wallet name.";
+                        }
+                        return true;
+                    }
+                }
+            ]);
 
-    return wallet;
+            try {
+                currentWalletId = await secureStorage.saveWallet(wallet, nameAnswer.name.trim());
+                console.log("✅ Wallet saved securely!");
+            } catch (error) {
+                console.log("❌ Failed to save wallet:", error);
+            }
+        }
+
+        return wallet;
+    } catch (error) {
+        handleWalletError(error, "Create Wallet");
+        return null;
+    }
 }
 
 export async function importWallet() {
-    console.log("\n=== Import Wallet from Mnemonic ===");
-
-    const answer = await inquirer.prompt([
-        {
-            type: "input",
-            name: "mnemonic",
-            message: "Enter your 12/24 mnemonic phrase:",
-            validate: (input: string) => {
-                if (!input || input.trim().length === 0) {
-                    return "Please enter a mnemonic phrase.";
-                }
-                
-                const words = input.trim().split(/\s+/);
-                if (words.length !== 12 && words.length !== 24) {
-                    return "Mnemonic must be 12 or 24 words.";
-                }
-                
-                return true;
-            }
-        },
-        {
-            type: "list",
-            name: "network",
-            message: "Select the network to check for existing accounts:",
-            choices: Object.keys(NETWORKS)
-        }
-    ]);
-
-    const mnemonic = answer.mnemonic.trim();
-    const network = answer.network;
-    
     try {
+        console.log("\n=== Import Wallet from Mnemonic ===");
+
+        const answer = await inquirer.prompt([
+            {
+                type: "input",
+                name: "mnemonic",
+                message: "Enter your 12/24 mnemonic phrase:",
+                validate: (input: string) => {
+                    if (!input || input.trim().length === 0) {
+                        return "Please enter a mnemonic phrase.";
+                    }
+                    
+                    const words = input.trim().split(/\s+/);
+                    if (words.length !== 12 && words.length !== 24) {
+                        return "Mnemonic must be 12 or 24 words.";
+                    }
+                    
+                    return true;
+                }
+            },
+            {
+                type: "list",
+                name: "network",
+                message: "Select the network to check for existing accounts:",
+                choices: Object.keys(NETWORKS)
+            }
+        ]);
+
+        const mnemonic = answer.mnemonic.trim();
+        const network = answer.network;
+        
         // Create Mnemonic object from the phrase 
         const mnemonicObj = ethers.Mnemonic.fromPhrase(mnemonic);
         const provider = new ethers.JsonRpcProvider(NETWORKS[network]);
@@ -182,8 +203,7 @@ export async function importWallet() {
         return existingAccounts[0]?.wallet || null;
         
     } catch (error) {
-        console.log("\n❌ Invalid mnemonic phrase. Please check and try again.");
-        console.error("Error:", error);
+        handleWalletError(error, "Import Wallet");
         return null;
     }
 }
@@ -309,36 +329,36 @@ export async function deriveAccounts() {
 }
 
 export async function checkBalance() {
-      console.log("\n=== Check Balance ===");
+    try {
+        console.log("\n=== Check Balance ===");
 
-      const answer = await inquirer.prompt([
-        {
-            type: "input",
-            name: "address",
-            message: "Enter the Ethereum account address:",
-            validate: (input: string) => {
-                try{
-                    ethers.getAddress(input.trim());
-                    return true;
-                }catch{
-                    return "Invalid address. Please enter a valid Ethereum address.";
+        const answer = await inquirer.prompt([
+            {
+                type: "input",
+                name: "address",
+                message: "Enter the Ethereum account address:",
+                validate: (input: string) => {
+                    try{
+                        ethers.getAddress(input.trim());
+                        return true;
+                    }catch{
+                        return "Invalid address. Please enter a valid Ethereum address.";
+                    }
                 }
+            },
+            {
+                type: "list",
+                name: "network",
+                message: "Select the network:",
+                choices: Object.keys(NETWORKS)
             }
-        },
-        {
-            type: "list",
-            name: "network",
-            message: "Select the network:",
-            choices: Object.keys(NETWORKS)
-        }
-     ]);
-            
-     const address = answer.address.trim();
-     const networkName = answer.network;
-     const rpcUrl = NETWORKS[networkName];
-     const provider = new ethers.JsonRpcProvider(rpcUrl);
+        ]);
+                
+        const address = answer.address.trim();
+        const networkName = answer.network;
+        const rpcUrl = NETWORKS[networkName];
+        const provider = new ethers.JsonRpcProvider(rpcUrl);
 
-     try{
         const balance = await provider.getBalance(address);
         const balanceInEther = ethers.formatEther(balance);
 
@@ -346,92 +366,90 @@ export async function checkBalance() {
         console.log("Network:", networkName);
         console.log("Balance:", balanceInEther, "ETH\n");
 
-     } catch (error){
-        console.log("\nError checking balance:", error);
-        return null;
-     }
-
+    } catch (error) {
+        handleWalletError(error, "Check Balance");
+    }
 }
 
 
 export async function sendTransaction() {
-    console.log("\n=== Send Transaction ===");
-
-    const answers = await inquirer.prompt([
-        {
-            type: "input",
-            name: "privateKey",
-            message: "Enter your private key:",
-            validate: (input: string) => {
-                if (!input || input.trim().length === 0) {
-                    return "Please enter a private key.";
-                }
-                try {
-                    // Remove '0x' prefix if present for validation
-                    const cleanKey = input.trim().startsWith('0x') ? input.trim().slice(2) : input.trim();
-                    
-                    // Check if it's a valid hex string of correct length (64 characters for 32 bytes)
-                    if (!/^[0-9a-fA-F]{64}$/.test(cleanKey)) {
-                        return "Invalid private key format. Must be 64 hex characters.";
-                    }
-                    
-                    // Try to create wallet to validate
-                    new ethers.Wallet('0x' + cleanKey);
-                    return true;
-                } catch {
-                    return "Invalid private key. Please enter a valid private key.";
-                }
-            }
-        },
-        {
-            type: "input",
-            name: "toAddress",
-            message: "Enter recipient address:",
-            validate: (input: string) => {
-                try {
-                    ethers.getAddress(input.trim());
-                    return true;
-                } catch {
-                    return "Invalid Ethereum address. Please enter a valid address.";
-                }
-            }
-        },
-        {
-            type: "input",
-            name: "amount",
-            message: "Enter amount to send (in ETH):",
-            validate: (input: string) => {
-                const amount = parseFloat(input);
-                if (isNaN(amount) || amount <= 0) {
-                    return "Please enter a valid amount greater than 0.";
-                }
-                return true;
-            }
-        },
-        {
-            type: "list",
-            name: "network",
-            message: "Select the network:",
-            choices: Object.keys(NETWORKS)
-        },
-        {
-            type: "input",
-            name: "gasPrice",
-            message: "Enter gas price in Gwei (leave empty for automatic):",
-            validate: (input: string) => {
-                if (!input || input.trim() === "") {
-                    return true;
-                }
-                const gasPrice = parseFloat(input);
-                if (isNaN(gasPrice) || gasPrice <= 0) {
-                    return "Please enter a valid gas price greater than 0.";
-                }
-                return true;
-            }
-        }
-    ]);
-
     try {
+        console.log("\n=== Send Transaction ===");
+
+        const answers = await inquirer.prompt([
+            {
+                type: "input",
+                name: "privateKey",
+                message: "Enter your private key:",
+                validate: (input: string) => {
+                    if (!input || input.trim().length === 0) {
+                        return "Please enter a private key.";
+                    }
+                    try {
+                        // Remove '0x' prefix if present for validation
+                        const cleanKey = input.trim().startsWith('0x') ? input.trim().slice(2) : input.trim();
+                        
+                        // Check if it's a valid hex string of correct length (64 characters for 32 bytes)
+                        if (!/^[0-9a-fA-F]{64}$/.test(cleanKey)) {
+                            return "Invalid private key format. Must be 64 hex characters.";
+                        }
+                        
+                        // Try to create wallet to validate
+                        new ethers.Wallet('0x' + cleanKey);
+                        return true;
+                    } catch {
+                        return "Invalid private key. Please enter a valid private key.";
+                    }
+                }
+            },
+            {
+                type: "input",
+                name: "toAddress",
+                message: "Enter recipient address:",
+                validate: (input: string) => {
+                    try {
+                        ethers.getAddress(input.trim());
+                        return true;
+                    } catch {
+                        return "Invalid Ethereum address. Please enter a valid address.";
+                    }
+                }
+            },
+            {
+                type: "input",
+                name: "amount",
+                message: "Enter amount to send (in ETH):",
+                validate: (input: string) => {
+                    const amount = parseFloat(input);
+                    if (isNaN(amount) || amount <= 0) {
+                        return "Please enter a valid amount greater than 0.";
+                    }
+                    return true;
+                }
+            },
+            {
+                type: "list",
+                name: "network",
+                message: "Select the network:",
+                choices: Object.keys(NETWORKS)
+            },
+            {
+                type: "input",
+                name: "gasPrice",
+                message: "Enter gas price in Gwei (leave empty for automatic):",
+                validate: (input: string) => {
+                    if (!input || input.trim() === "") {
+                        return true;
+                    }
+                    const gasPrice = parseFloat(input);
+                    if (isNaN(gasPrice) || gasPrice <= 0) {
+                        return "Please enter a valid gas price greater than 0.";
+                    }
+                    return true;
+                }
+            }
+        ]);
+
         // Clean and prepare private key
         const privateKey = answers.privateKey.trim().startsWith('0x') 
             ? answers.privateKey.trim() 
@@ -542,8 +560,7 @@ export async function sendTransaction() {
         }
 
     } catch (error) {
-        console.log("Error sending transaction:");
-        console.error(error);
+        handleWalletError(error, "Send Transaction");
     }
 }
 
@@ -726,18 +743,27 @@ export async function showInfo() {
 }
 
 export async function showTransactionHistory() {
-    console.log("\n=== Transaction History ===");
+    console.log("\n📋 Transaction History (All Accounts)");
+    console.log("=".repeat(50));
     
-    if (!currentWalletId) {
-        console.log("No wallet loaded. Please create or import a wallet first.");
-        return;
-    }
-
     try {
-        const transactions = await secureStorage.loadTransactions(currentWalletId);
+        // Get all wallets
+        const wallets = await secureStorage.loadWallets();
         
-        if (transactions.length === 0) {
-            console.log("No transaction history found.");
+        if (wallets.length === 0) {
+            console.log("❌ No wallets found. Please create or import a wallet first.");
+            return;
+        }
+
+        // Collect transactions from all wallets
+        let allTransactions: any[] = [];
+        for (const wallet of wallets) {
+            const walletTransactions = await secureStorage.loadTransactions(wallet.id);
+            allTransactions = allTransactions.concat(walletTransactions);
+        }
+        
+        if (allTransactions.length === 0) {
+            console.log("No transaction history found across all accounts.");
             return;
         }
 
@@ -755,17 +781,17 @@ export async function showTransactionHistory() {
             }
         ]);
 
-        let filteredTransactions = transactions;
+        let filteredTransactions = allTransactions;
         
         switch (answer.filter) {
             case "send":
-                filteredTransactions = transactions.filter(tx => tx.type === 'send');
+                filteredTransactions = allTransactions.filter(tx => tx.type === 'send');
                 break;
             case "receive":
-                filteredTransactions = transactions.filter(tx => tx.type === 'receive');
+                filteredTransactions = allTransactions.filter(tx => tx.type === 'receive');
                 break;
             case "recent":
-                filteredTransactions = transactions
+                filteredTransactions = allTransactions
                     .sort((a, b) => new Date(b.timestamp).getTime() - new Date(a.timestamp).getTime())
                     .slice(0, 10);
                 break;
@@ -959,6 +985,267 @@ export async function manageWallets() {
         }
     } catch (error) {
         console.log("❌ Failed to manage wallets:", error);
+    }
+}
+
+// Account-specific functions
+export async function checkAccountBalance(wallet: any, accountIndex: number): Promise<void> {
+    console.log("\n💰 Check Account Balance");
+    console.log("=".repeat(40));
+    
+    const account = wallet.accounts[accountIndex];
+    console.log(`Account: ${account.address}`);
+    console.log(`Network: ${wallet.network}`);
+    
+    try {
+        const { NETWORKS } = await import("./networks.js");
+        const provider = new ethers.JsonRpcProvider(NETWORKS[wallet.network]);
+        const balance = await provider.getBalance(account.address);
+        const balanceInEther = ethers.formatEther(balance);
+        
+        console.log(`Balance: ${balanceInEther} ETH`);
+        console.log("=".repeat(40));
+    } catch (error) {
+        console.log("❌ Error checking balance:", error);
+    }
+}
+
+export async function sendAccountTransaction(wallet: any, accountIndex: number): Promise<void> {
+    console.log("\n📤 Send Transaction from Account");
+    console.log("=".repeat(40));
+    
+    const account = wallet.accounts[accountIndex];
+    console.log(`From Account: ${account.address}`);
+    console.log(`Network: ${wallet.network}`);
+    
+    try {
+        const { NETWORKS } = await import("./networks.js");
+        const provider = new ethers.JsonRpcProvider(NETWORKS[wallet.network]);
+        
+        // Get private key for this account
+        const { privateKey } = await secureStorage.decryptWallet(wallet);
+        const walletInstance = new ethers.Wallet(privateKey, provider);
+        
+        const answers = await inquirer.prompt([
+            {
+                type: "input",
+                name: "toAddress",
+                message: "Enter recipient address:",
+                validate: (input: string) => {
+                    try {
+                        ethers.getAddress(input.trim());
+                        return true;
+                    } catch {
+                        return "Invalid Ethereum address. Please enter a valid address.";
+                    }
+                }
+            },
+            {
+                type: "input",
+                name: "amount",
+                message: "Enter amount to send (in ETH):",
+                validate: (input: string) => {
+                    const amount = parseFloat(input);
+                    if (isNaN(amount) || amount <= 0) {
+                        return "Please enter a valid amount greater than 0.";
+                    }
+                    return true;
+                }
+            },
+            {
+                type: "input",
+                name: "gasPrice",
+                message: "Enter gas price in Gwei (leave empty for automatic):",
+                validate: (input: string) => {
+                    if (!input || input.trim() === "") {
+                        return true;
+                    }
+                    const gasPrice = parseFloat(input);
+                    if (isNaN(gasPrice) || gasPrice <= 0) {
+                        return "Please enter a valid gas price greater than 0.";
+                    }
+                    return true;
+                }
+            }
+        ]);
+
+        // Check balance
+        const balance = await provider.getBalance(account.address);
+        const balanceInEther = parseFloat(ethers.formatEther(balance));
+        const amountToSend = parseFloat(answers.amount);
+
+        console.log(`\nCurrent balance: ${balanceInEther} ETH`);
+        console.log(`Amount to send: ${amountToSend} ETH`);
+
+        if (amountToSend >= balanceInEther) {
+            console.log("❌ Insufficient balance to send transaction.");
+            return;
+        }
+
+        // Prepare transaction
+        const toAddress = ethers.getAddress(answers.toAddress.trim());
+        const value = ethers.parseEther(answers.amount);
+
+        // Get gas estimate
+        const gasEstimate = await provider.estimateGas({
+            to: toAddress,
+            value: value,
+            from: account.address
+        });
+
+        // Set gas price
+        let gasPrice;
+        if (answers.gasPrice && answers.gasPrice.trim() !== "") {
+            gasPrice = ethers.parseUnits(answers.gasPrice, "gwei");
+        } else {
+            const feeData = await provider.getFeeData();
+            gasPrice = feeData.gasPrice || ethers.parseUnits("20", "gwei");
+        }
+
+        const transaction = {
+            to: toAddress,
+            value: value,
+            gasLimit: gasEstimate,
+            gasPrice: gasPrice
+        };
+
+        // Confirm transaction
+        const confirmAnswer = await inquirer.prompt([
+            {
+                type: "confirm",
+                name: "confirm",
+                message: `Send ${answers.amount} ETH to ${toAddress}?`,
+                default: false
+            }
+        ]);
+
+        if (!confirmAnswer.confirm) {
+            console.log("❌ Transaction cancelled.");
+            return;
+        }
+
+        // Send transaction
+        console.log("\n📤 Sending transaction...");
+        const txnResponse = await walletInstance.sendTransaction(transaction);
+        
+        console.log("✅ Transaction sent!");
+        console.log(`Transaction hash: ${txnResponse.hash}`);
+        console.log("⏳ Waiting for confirmation...");
+
+        // Wait for confirmation
+        const receipt = await txnResponse.wait();
+        
+        if (receipt) {
+            console.log("✅ Transaction confirmed!");
+            console.log(`Block number: ${receipt.blockNumber}`);
+            console.log(`Gas used: ${receipt.gasUsed.toString()}`);
+            console.log(`Transaction hash: ${receipt.hash}`);
+        }
+
+    } catch (error) {
+        console.log("❌ Error sending transaction:", error);
+    }
+}
+
+export async function getAccountTransactionHistory(wallet: any, accountIndex: number): Promise<void> {
+    console.log("\n📋 Account Transaction History");
+    console.log("=".repeat(40));
+    
+    const account = wallet.accounts[accountIndex];
+    console.log(`Account: ${account.address}`);
+    console.log(`Network: ${wallet.network}`);
+    
+    try {
+        const transactions = await secureStorage.loadTransactions(wallet.id);
+        const accountTransactions = transactions.filter(tx => 
+            tx.from === account.address || tx.to === account.address
+        );
+        
+        if (accountTransactions.length === 0) {
+            console.log("No transaction history found for this account.");
+            return;
+        }
+
+        console.log(`\nFound ${accountTransactions.length} transactions:\n`);
+
+        accountTransactions
+            .sort((a, b) => new Date(b.timestamp).getTime() - new Date(a.timestamp).getTime())
+            .forEach((tx, index) => {
+                console.log(`${index + 1}. ${tx.type.toUpperCase()} Transaction`);
+                console.log(`   Hash: ${tx.hash}`);
+                console.log(`   From: ${tx.from}`);
+                console.log(`   To: ${tx.to}`);
+                console.log(`   Amount: ${tx.amount} ETH`);
+                console.log(`   Network: ${tx.network}`);
+                console.log(`   Gas Used: ${tx.gasUsed}`);
+                console.log(`   Block: ${tx.blockNumber}`);
+                console.log(`   Status: ${tx.status}`);
+                console.log(`   Date: ${new Date(tx.timestamp).toLocaleString()}`);
+                console.log("   " + "-".repeat(40));
+            });
+
+    } catch (error) {
+        console.log("❌ Failed to load transaction history:", error);
+    }
+}
+
+export async function getAccountSecrets(wallet: any, accountIndex: number): Promise<void> {
+    try {
+        // Verify master password
+        const passwordAnswer = await inquirer.prompt([
+            {
+                type: "password",
+                name: "password",
+                message: "Enter your master password to view account secrets:",
+                mask: "*",
+                validate: (input: string) => {
+                    if (!input || input.trim().length === 0) {
+                        return "Password cannot be empty. Please enter your master password.";
+                    }
+                    return true;
+                }
+            }
+        ]);
+
+        const isValid = await secureStorage.loadMasterPassword(passwordAnswer.password);
+        if (!isValid) {
+            console.log("❌ Invalid master password. Access denied.");
+            secureStorage.clearMasterKey();
+            return;
+        }
+
+        // Verify the password works by attempting to decrypt the wallet
+        let mnemonic: string, privateKey: string;
+        try {
+            const result = await secureStorage.decryptWallet(wallet);
+            mnemonic = result.mnemonic;
+            privateKey = result.privateKey;
+        } catch (error) {
+            console.log("❌ Invalid master password. Access denied.");
+            secureStorage.clearMasterKey();
+            return;
+        }
+        const account = wallet.accounts[accountIndex];
+        
+        console.log("\n🔐 Account Secrets");
+        console.log("=".repeat(60));
+        console.log(`Wallet Name: ${wallet.name}`);
+        console.log(`Account Index: ${accountIndex}`);
+        console.log(`Network: ${wallet.network}`);
+        console.log("=".repeat(60));
+        console.log(`Address: ${account.address}`);
+        console.log(`Public Key: ${account.publicKey}`);
+        console.log(`Private Key: ${privateKey}`);
+        console.log(`Derivation Path: ${account.derivationPath}`);
+        console.log(`Mnemonic: ${mnemonic}`);
+        if (account.balance) {
+            console.log(`Balance: ${account.balance} ETH`);
+        }
+        console.log("=".repeat(60));
+        console.log("\n⚠️  WARNING: Keep this information secure and never share it!");
+        
+    } catch (error) {
+        handleWalletError(error, "Show Account Secrets");
     }
 }
 
