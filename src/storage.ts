@@ -15,16 +15,25 @@ const KEY_LENGTH = 32; // 256 bits
 const IV_LENGTH = 16; // 128 bits
 const TAG_LENGTH = 16; // 128 bits
 
+export interface WalletAccount {
+    index: number;
+    address: string;
+    publicKey: string;
+    encryptedPrivateKey: string;
+    derivationPath: string; // BIP44 path like "m/44'/60'/0'/0/0"
+    balance?: string; // Current balance in ETH
+    txCount?: number; // Transaction count
+}
+
 export interface StoredWallet {
     id: string;
     name: string;
-    address: string;
-    publicKey: string;
     encryptedMnemonic: string;
-    encryptedPrivateKey: string;
     createdAt: string;
     lastUsed: string;
     network: string;
+    accounts: WalletAccount[]; // Array of all accounts in this wallet
+    currentAccountIndex: number; // Index of currently active account (default: 0)
 }
 
 export interface TransactionRecord {
@@ -159,7 +168,11 @@ class SecureStorage {
         }
     }
 
-    async saveWallet(wallet: HDNodeWallet, name: string, network: string = 'sepolia'): Promise<string> {
+    async saveWallet(
+        wallet: HDNodeWallet, 
+        name: string, 
+        network: string = 'sepolia'
+    ): Promise<string> {
         if (!this.masterKey) {
             throw new Error('Master password not set');
         }
@@ -167,22 +180,80 @@ class SecureStorage {
         const walletId = crypto.randomUUID();
         const mnemonic = wallet.mnemonic?.phrase || '';
         
+        const account: WalletAccount = {
+            index: 0,
+            address: wallet.address,
+            publicKey: wallet.publicKey,
+            encryptedPrivateKey: this.encrypt(wallet.privateKey, this.masterKey),
+            derivationPath: "m/44'/60'/0'/0/0"
+        };
+        
         const storedWallet: StoredWallet = {
             id: walletId,
             name,
-            address: wallet.address,
-            publicKey: wallet.publicKey,
             encryptedMnemonic: this.encrypt(mnemonic, this.masterKey),
-            encryptedPrivateKey: this.encrypt(wallet.privateKey, this.masterKey),
             createdAt: new Date().toISOString(),
             lastUsed: new Date().toISOString(),
-            network
+            network,
+            accounts: [account],
+            currentAccountIndex: 0
         };
 
         const wallets = await this.loadWallets();
         wallets.push(storedWallet);
         
-        const encryptedWallets = this.encrypt(JSON.stringify(wallets), this.masterKey);
+        const encryptedWallets = this.encrypt(JSON.stringify(wallets), this.masterKey!);
+        fs.writeFileSync(WALLETS_FILE, encryptedWallets, { mode: 0o600 });
+        
+        return walletId;
+    }
+
+    async saveMultiAccountWallet(
+        accounts: Array<{
+            index: number;
+            wallet: HDNodeWallet;
+            balance?: string;
+            txCount?: number;
+        }>,
+        name: string,
+        network: string = 'sepolia'
+    ): Promise<string> {
+        if (!this.masterKey) {
+            throw new Error('Master password not set');
+        }
+
+        if (accounts.length === 0) {
+            throw new Error('No accounts provided');
+        }
+
+        const walletId = crypto.randomUUID();
+        const mnemonic = accounts[0]?.wallet.mnemonic?.phrase || '';
+        
+        const walletAccounts: WalletAccount[] = accounts.map(account => ({
+            index: account.index,
+            address: account.wallet.address,
+            publicKey: account.wallet.publicKey,
+            encryptedPrivateKey: this.encrypt(account.wallet.privateKey, this.masterKey!),
+            derivationPath: `m/44'/60'/0'/0/${account.index}`,
+            ...(account.balance && { balance: account.balance }),
+            ...(account.txCount !== undefined && { txCount: account.txCount })
+        }));
+        
+        const storedWallet: StoredWallet = {
+            id: walletId,
+            name,
+            encryptedMnemonic: this.encrypt(mnemonic, this.masterKey),
+            createdAt: new Date().toISOString(),
+            lastUsed: new Date().toISOString(),
+            network,
+            accounts: walletAccounts,
+            currentAccountIndex: 0
+        };
+
+        const wallets = await this.loadWallets();
+        wallets.push(storedWallet);
+        
+        const encryptedWallets = this.encrypt(JSON.stringify(wallets), this.masterKey!);
         fs.writeFileSync(WALLETS_FILE, encryptedWallets, { mode: 0o600 });
         
         return walletId;
@@ -218,9 +289,34 @@ class SecureStorage {
         }
 
         const mnemonic = this.decrypt(storedWallet.encryptedMnemonic, this.masterKey);
-        const privateKey = this.decrypt(storedWallet.encryptedPrivateKey, this.masterKey);
+        const currentAccount = storedWallet.accounts[storedWallet.currentAccountIndex];
+        if (!currentAccount) {
+            throw new Error('Current account not found');
+        }
+        const privateKey = this.decrypt(currentAccount.encryptedPrivateKey, this.masterKey);
         
         return { mnemonic, privateKey };
+    }
+
+    async getCurrentAccount(storedWallet: StoredWallet): Promise<WalletAccount | null> {
+        return storedWallet.accounts[storedWallet.currentAccountIndex] || null;
+    }
+
+    async switchAccount(walletId: string, accountIndex: number): Promise<boolean> {
+        const wallets = await this.loadWallets();
+        const wallet = wallets.find(w => w.id === walletId);
+        
+        if (!wallet || accountIndex < 0 || accountIndex >= wallet.accounts.length) {
+            return false;
+        }
+        
+        wallet.currentAccountIndex = accountIndex;
+        wallet.lastUsed = new Date().toISOString();
+        
+        const encryptedWallets = this.encrypt(JSON.stringify(wallets), this.masterKey!);
+        fs.writeFileSync(WALLETS_FILE, encryptedWallets, { mode: 0o600 });
+        
+        return true;
     }
 
     async updateWalletLastUsed(walletId: string): Promise<void> {

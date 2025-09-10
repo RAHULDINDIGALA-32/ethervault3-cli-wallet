@@ -2,7 +2,7 @@ import { Wallet, HDNodeWallet, ethers } from "ethers";
 import { NETWORKS } from "./networks.js";
 import inquirer from "inquirer";
 import { secureStorage } from "./storage.js";
-import type { StoredWallet, TransactionRecord } from "./storage.js";
+import type { StoredWallet, TransactionRecord, WalletAccount } from "./storage.js";
 import * as crypto from "crypto";
 
 let currentMnemonic = "";
@@ -59,49 +59,209 @@ export async function createWallet() {
 }
 
 export async function importWallet() {
-   console.log("\n=== Import Wallet from Mnemonic ===");
+    console.log("\n=== Import Wallet from Mnemonic ===");
 
-   const answer = await inquirer.prompt([
-       {
-        type: "input",
-        name: "mnemonic",
-        message: "Enter your 12/24 mnemonic phrase:",
-        validate: (input: string) => {
-            if (!input || input.trim().length === 0) {
-                return "Please enter a mnemonic phrase.";
+    const answer = await inquirer.prompt([
+        {
+            type: "input",
+            name: "mnemonic",
+            message: "Enter your 12/24 mnemonic phrase:",
+            validate: (input: string) => {
+                if (!input || input.trim().length === 0) {
+                    return "Please enter a mnemonic phrase.";
+                }
+                
+                const words = input.trim().split(/\s+/);
+                if (words.length !== 12 && words.length !== 24) {
+                    return "Mnemonic must be 12 or 24 words.";
+                }
+                
+                return true;
             }
-            
-            const words = input.trim().split(/\s+/);
-            if (words.length !== 12 && words.length !== 24) {
-                return "Mnemonic must be 12 or 24 words.";
-            }
-            
-            return true;
+        },
+        {
+            type: "list",
+            name: "network",
+            message: "Select the network to check for existing accounts:",
+            choices: Object.keys(NETWORKS)
         }
-       }
-   ]);
+    ]);
 
-   const mnemonic = answer.mnemonic.trim();
-   currentMnemonic = mnemonic;
-   
-   try {
-       // create a Mnemonic object from the phrase 
-       const mnemonicObj = ethers.Mnemonic.fromPhrase(mnemonic);
-       const wallet = HDNodeWallet.fromMnemonic(mnemonicObj);
-       
-       console.log("\nWallet imported successfully!");
-       console.log("-------------------------");
-       console.log("Address:\n", wallet.address);
-       console.log("Public Key:\n", wallet.publicKey);
-       console.log("Private Key:\n", wallet.privateKey);
-       console.log("-------------------------\n");
+    const mnemonic = answer.mnemonic.trim();
+    const network = answer.network;
+    
+    try {
+        // Create Mnemonic object from the phrase 
+        const mnemonicObj = ethers.Mnemonic.fromPhrase(mnemonic);
+        const provider = new ethers.JsonRpcProvider(NETWORKS[network]);
+        
+        console.log("\n🔍 Discovering existing accounts...");
+        console.log("This may take a moment as we check for account activity...\n");
+        
+        // Discover existing accounts
+        const existingAccounts = await discoverExistingAccounts(mnemonicObj, provider, network);
+        
+        if (existingAccounts.length === 0) {
+            console.log("No existing accounts found. Creating default account (index 0).");
+            const defaultWallet = HDNodeWallet.fromMnemonic(mnemonicObj);
+            currentMnemonic = mnemonic;
+            
+            console.log("\nDefault Account:");
+            console.log("-------------------------");
+            console.log("Address:", defaultWallet.address);
+            console.log("Public Key:", defaultWallet.publicKey);
+            console.log("Private Key:", defaultWallet.privateKey);
+            console.log("-------------------------\n");
+            
+            return defaultWallet;
+        }
+        
+        console.log(`✅ Found ${existingAccounts.length} existing account(s):\n`);
+        
+        // Display discovered accounts
+        existingAccounts.forEach((account, index) => {
+            console.log(`Account ${index + 1} (Index ${account.index}):`);
+            console.log(`Address: ${account.wallet.address}`);
+            console.log(`Balance: ${account.balance} ETH`);
+            console.log(`Transactions: ${account.txCount}`);
+            console.log("-------------------------");
+        });
+        
+        // Ask if user wants to save all accounts
+        const saveAnswer = await inquirer.prompt([
+            {
+                type: "confirm",
+                name: "saveAll",
+                message: `Do you want to save all ${existingAccounts.length} accounts?`,
+                default: true
+            }
+        ]);
+        
+        if (saveAnswer.saveAll) {
+            const walletNameAnswer = await inquirer.prompt([
+                {
+                    type: "input",
+                    name: "baseName",
+                    message: "Enter a name for this wallet (e.g., 'MetaMask'):",
+                    default: "Imported Wallet",
+                    validate: (input: string) => {
+                        if (!input || input.trim().length === 0) {
+                            return "Please enter a wallet name.";
+                        }
+                        return true;
+                    }
+                }
+            ]);
+            
+            console.log("\n💾 Saving multi-account wallet...");
+            
+            try {
+                // Save all accounts as a single wallet
+                const walletId = await secureStorage.saveMultiAccountWallet(
+                    existingAccounts,
+                    walletNameAnswer.baseName.trim(),
+                    network
+                );
+                
+                currentWalletId = walletId;
+                currentMnemonic = mnemonic;
+                
+                console.log(`✅ Saved wallet: ${walletNameAnswer.baseName.trim()}`);
+                console.log(`📊 Contains ${existingAccounts.length} account(s)`);
+                console.log(`🔑 Current active account: ${existingAccounts[0]?.wallet.address || 'Unknown'}`);
+                
+            } catch (error) {
+                console.log(`❌ Failed to save wallet:`, error);
+            }
+        } else {
+            // User chose not to save, just set the first account as current
+            currentMnemonic = mnemonic;
+            console.log("\n✅ Wallet imported (not saved). You can save it later from the main menu.");
+        }
+        
+        return existingAccounts[0]?.wallet || null;
+        
+    } catch (error) {
+        console.log("\n❌ Invalid mnemonic phrase. Please check and try again.");
+        console.error("Error:", error);
+        return null;
+    }
+}
 
-       return wallet;
-   } catch (error) {
-       console.log("\nInvalid mnemonic phrase. Please check and try again.");
-       console.error("Error:", error);
-       return null;
-   }
+// Helper function to discover existing accounts
+async function discoverExistingAccounts(
+    mnemonicObj: ethers.Mnemonic, 
+    provider: ethers.JsonRpcProvider, 
+    network: string
+): Promise<Array<{
+    index: number;
+    wallet: HDNodeWallet;
+    balance: string;
+    txCount: number;
+}>> {
+    const accounts: Array<{
+        index: number;
+        wallet: HDNodeWallet;
+        balance: string;
+        txCount: number;
+    }> = [];
+    
+    let index = 0;
+    let consecutiveEmptyAccounts = 0;
+    const maxConsecutiveEmpty = 3; // Stop after 3 consecutive empty accounts
+    const maxAccountsToCheck = 20; // Safety limit
+    
+    while (index < maxAccountsToCheck && consecutiveEmptyAccounts < maxConsecutiveEmpty) {
+        try {
+            const path = `m/44'/60'/0'/0/${index}`;
+            const wallet = HDNodeWallet.fromMnemonic(mnemonicObj, path);
+            
+            // Check balance
+            const balance = await provider.getBalance(wallet.address);
+            const balanceInEther = ethers.formatEther(balance);
+            
+            // Check transaction count (this is a rough indicator of activity)
+            // Note: This is an approximation - some networks don't support getTransactionCount
+            let txCount = 0;
+            try {
+                txCount = await provider.getTransactionCount(wallet.address);
+            } catch (error) {
+                // If we can't get transaction count, use balance as indicator
+                txCount = parseFloat(balanceInEther) > 0 ? 1 : 0;
+            }
+            
+            // Consider an account "active" if it has:
+            // 1. Non-zero balance, OR
+            // 2. Has sent/received transactions (txCount > 0)
+            const isActive = parseFloat(balanceInEther) > 0 || txCount > 0;
+            
+            if (isActive) {
+                accounts.push({
+                    index,
+                    wallet,
+                    balance: balanceInEther,
+                    txCount
+                });
+                consecutiveEmptyAccounts = 0; // Reset counter
+                console.log(`✓ Found active account at index ${index}: ${wallet.address} (${balanceInEther} ETH, ${txCount} txs)`);
+            } else {
+                consecutiveEmptyAccounts++;
+                console.log(`- Checking index ${index}: ${wallet.address} (empty)`);
+            }
+            
+            index++;
+            
+            // Add small delay to avoid rate limiting
+            await new Promise(resolve => setTimeout(resolve, 100));
+            
+        } catch (error) {
+            console.log(`Error checking account at index ${index}:`, error);
+            consecutiveEmptyAccounts++;
+            index++;
+        }
+    }
+    
+    return accounts;
 }
 
 
@@ -403,17 +563,24 @@ export async function exportAccount() {
         }
 
         const { mnemonic, privateKey } = await secureStorage.decryptWallet(storedWallet);
+        const currentAccount = storedWallet.accounts[storedWallet.currentAccountIndex];
         
         console.log("\nWallet Details:");
         console.log("-------------------------");
         console.log("Name:", storedWallet.name);
-        console.log("Address:", storedWallet.address);
-        console.log("Public Key:", storedWallet.publicKey);
-        console.log("Private Key:", privateKey);
-        console.log("Mnemonic:", mnemonic);
         console.log("Network:", storedWallet.network);
+        console.log("Total Accounts:", storedWallet.accounts.length);
+        console.log("Current Account Index:", storedWallet.currentAccountIndex);
         console.log("Created:", new Date(storedWallet.createdAt).toLocaleString());
         console.log("Last Used:", new Date(storedWallet.lastUsed).toLocaleString());
+        
+        console.log("\nCurrent Active Account:");
+        console.log("-------------------------");
+        console.log("Address:", currentAccount?.address || 'Unknown');
+        console.log("Public Key:", currentAccount?.publicKey || 'Unknown');
+        console.log("Private Key:", privateKey);
+        console.log("Derivation Path:", currentAccount?.derivationPath || 'Unknown');
+        console.log("Mnemonic:", mnemonic);
         console.log("-------------------------\n");
 
         const saveAnswer = await inquirer.prompt([
@@ -430,11 +597,15 @@ export async function exportAccount() {
             const content = `Wallet Export - ${storedWallet.name}
 Generated: ${new Date().toISOString()}
 
-Address: ${storedWallet.address}
-Public Key: ${storedWallet.publicKey}
+Current Account:
+Address: ${currentAccount?.address || 'Unknown'}
+Public Key: ${currentAccount?.publicKey || 'Unknown'}
 Private Key: ${privateKey}
+Derivation Path: ${currentAccount?.derivationPath || 'Unknown'}
+
 Mnemonic: ${mnemonic}
 Network: ${storedWallet.network}
+Total Accounts: ${storedWallet.accounts.length}
 
 WARNING: Keep this file secure and never share it with anyone!
 `;
@@ -508,14 +679,25 @@ export async function showInfo() {
             return;
         }
 
+        const currentAccount = storedWallet.accounts[storedWallet.currentAccountIndex];
+        
         console.log("\nWallet Information:");
         console.log("-------------------------");
         console.log("Name:", storedWallet.name);
-        console.log("Address:", storedWallet.address);
-        console.log("Public Key:", storedWallet.publicKey);
         console.log("Network:", storedWallet.network);
+        console.log("Total Accounts:", storedWallet.accounts.length);
+        console.log("Current Account Index:", storedWallet.currentAccountIndex);
         console.log("Created:", new Date(storedWallet.createdAt).toLocaleString());
         console.log("Last Used:", new Date(storedWallet.lastUsed).toLocaleString());
+        
+        console.log("\nCurrent Active Account:");
+        console.log("-------------------------");
+        console.log("Address:", currentAccount?.address || 'Unknown');
+        console.log("Public Key:", currentAccount?.publicKey || 'Unknown');
+        console.log("Derivation Path:", currentAccount?.derivationPath || 'Unknown');
+        if (currentAccount?.balance) {
+            console.log("Balance:", currentAccount.balance, "ETH");
+        }
         console.log("-------------------------\n");
 
         // Show recent transactions
@@ -624,10 +806,17 @@ export async function manageWallets() {
             return;
         }
 
-        const choices = wallets.map(wallet => ({
-            name: `${wallet.name} (${wallet.address}) - ${wallet.network}`,
-            value: wallet.id
-        }));
+        const choices = wallets.map(wallet => {
+            const currentAccount = wallet.accounts[wallet.currentAccountIndex];
+            const accountCount = wallet.accounts.length;
+            const accountInfo = accountCount > 1 
+                ? ` [${accountCount} accounts, active: ${currentAccount?.address || 'Unknown'}]` 
+                : ` [${currentAccount?.address || 'Unknown'}]`;
+            return {
+                name: `${wallet.name}${accountInfo} - ${wallet.network}`,
+                value: wallet.id
+            };
+        });
 
         choices.push({ name: "Back to main menu", value: "back" });
 
@@ -650,17 +839,27 @@ export async function manageWallets() {
             return;
         }
 
+        const actionChoices = [
+            { name: "Load this wallet", value: "load" },
+            { name: "View details", value: "view" }
+        ];
+
+        // Add account switching option if wallet has multiple accounts
+        if (selectedWallet.accounts.length > 1) {
+            actionChoices.push({ name: "Switch account", value: "switch" });
+        }
+
+        actionChoices.push(
+            { name: "Delete wallet", value: "delete" },
+            { name: "Back", value: "back" }
+        );
+
         const actionAnswer = await inquirer.prompt([
             {
                 type: "list",
                 name: "action",
                 message: `What would you like to do with ${selectedWallet.name}?`,
-                choices: [
-                    { name: "Load this wallet", value: "load" },
-                    { name: "View details", value: "view" },
-                    { name: "Delete wallet", value: "delete" },
-                    { name: "Back", value: "back" }
-                ]
+                choices: actionChoices
             }
         ]);
 
@@ -673,15 +872,66 @@ export async function manageWallets() {
                 console.log(`✅ Loaded wallet: ${selectedWallet.name}`);
                 break;
             case "view":
+                const currentAccount = selectedWallet.accounts[selectedWallet.currentAccountIndex];
                 console.log("\nWallet Details:");
                 console.log("-------------------------");
                 console.log("Name:", selectedWallet.name);
-                console.log("Address:", selectedWallet.address);
-                console.log("Public Key:", selectedWallet.publicKey);
                 console.log("Network:", selectedWallet.network);
+                console.log("Total Accounts:", selectedWallet.accounts.length);
+                console.log("Current Account Index:", selectedWallet.currentAccountIndex);
                 console.log("Created:", new Date(selectedWallet.createdAt).toLocaleString());
                 console.log("Last Used:", new Date(selectedWallet.lastUsed).toLocaleString());
+                
+                console.log("\nCurrent Active Account:");
+                console.log("-------------------------");
+                console.log("Address:", currentAccount?.address || 'Unknown');
+                console.log("Public Key:", currentAccount?.publicKey || 'Unknown');
+                console.log("Derivation Path:", currentAccount?.derivationPath || 'Unknown');
+                if (currentAccount?.balance) {
+                    console.log("Balance:", currentAccount.balance, "ETH");
+                }
+                if (currentAccount?.txCount !== undefined) {
+                    console.log("Transaction Count:", currentAccount.txCount);
+                }
+                
+                if (selectedWallet.accounts.length > 1) {
+                    console.log("\nAll Accounts:");
+                    console.log("-------------------------");
+                    selectedWallet.accounts.forEach((account, index) => {
+                        const isActive = index === selectedWallet.currentAccountIndex;
+                        console.log(`${isActive ? '→' : ' '} Account ${index}: ${account.address}`);
+                        if (account.balance) {
+                            console.log(`   Balance: ${account.balance} ETH`);
+                        }
+                        if (account.txCount !== undefined) {
+                            console.log(`   Transactions: ${account.txCount}`);
+                        }
+                    });
+                }
                 console.log("-------------------------\n");
+                break;
+            case "switch":
+                const accountChoices = selectedWallet.accounts.map((account, index) => ({
+                    name: `Account ${index}: ${account.address}${index === selectedWallet.currentAccountIndex ? ' (current)' : ''}`,
+                    value: index
+                }));
+                
+                const switchAnswer = await inquirer.prompt([
+                    {
+                        type: "list",
+                        name: "accountIndex",
+                        message: "Select account to switch to:",
+                        choices: accountChoices
+                    }
+                ]);
+                
+                const success = await secureStorage.switchAccount(selectedWallet.id, switchAnswer.accountIndex);
+                if (success) {
+                    const targetAccount = selectedWallet.accounts[switchAnswer.accountIndex];
+                    console.log(`✅ Switched to account ${switchAnswer.accountIndex}: ${targetAccount?.address || 'Unknown'}`);
+                } else {
+                    console.log("❌ Failed to switch account.");
+                }
                 break;
             case "delete":
                 const confirmAnswer = await inquirer.prompt([
