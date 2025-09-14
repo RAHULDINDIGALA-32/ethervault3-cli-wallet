@@ -747,6 +747,13 @@ export async function showTransactionHistory() {
     console.log("=".repeat(50));
     
     try {
+        // Check authentication before proceeding
+        const masterKey = secureStorage.getMasterKey();
+        if (!masterKey) {
+            console.log("\n❌ Authentication required. Please re-enter your master password.");
+            return;
+        }
+
         // Get all wallets
         const wallets = await secureStorage.loadWallets();
         

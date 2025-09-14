@@ -12,6 +12,16 @@ let currentUser: { username: string; isFirstTime: boolean } | null = null;
 function handleError(error: any, context: string): void {
     console.log(`\n❌ Error in ${context}:`);
     console.log(error.message || error);
+    
+    // Reset authentication state for certain errors
+    if (error.message && (
+        error.message.includes('Master password not set') ||
+        error.message.includes('Decryption failed') ||
+        error.message.includes('Invalid master password')
+    )) {
+        resetAuthenticationState();
+    }
+    
     console.log("\n🔄 Returning to main menu...\n");
 }
 
@@ -31,6 +41,48 @@ function safeExecuteSync<T>(operation: () => T, context: string): T | null {
         handleError(error, context);
         return null;
     }
+}
+
+// Authentication state management
+async function checkAuthenticationState(): Promise<boolean> {
+    try {
+        // Check if master key is still valid
+        const masterKey = secureStorage.getMasterKey();
+        if (!masterKey) {
+            console.log("\n🔐 Authentication required. Please re-enter your master password.\n");
+            const passwordAnswer = await inquirer.prompt([
+                {
+                    type: "password",
+                    name: "password",
+                    message: "Enter your master password:",
+                    mask: "*",
+                    validate: (input: string) => {
+                        if (!input || input.trim().length === 0) {
+                            return "Password cannot be empty. Please enter your master password.";
+                        }
+                        return true;
+                    }
+                }
+            ]);
+
+            const isValid = await secureStorage.loadMasterPassword(passwordAnswer.password);
+            if (!isValid) {
+                console.log("❌ Invalid master password. Please try again.");
+                return false;
+            }
+            console.log("✅ Authentication successful!");
+        }
+        return true;
+    } catch (error) {
+        console.log("❌ Authentication failed:", error);
+        return false;
+    }
+}
+
+// Reset authentication state completely
+function resetAuthenticationState(): void {
+    secureStorage.clearMasterKey();
+    console.log("🔄 Authentication state reset. Please re-authenticate when needed.");
 }
 
 function displayTitleScreen() {
@@ -290,6 +342,13 @@ async function displayMainMenu(): Promise<string> {
 
 async function manageWalletMenu(): Promise<void> {
     try {
+        // Double-check authentication before proceeding
+        const masterKey = secureStorage.getMasterKey();
+        if (!masterKey) {
+            console.log("\n❌ Authentication required. Please re-enter your master password.");
+            return;
+        }
+
         const wallets = await secureStorage.loadWallets();
         
         if (wallets.length === 0) {
@@ -798,7 +857,11 @@ async function main() {
                 await safeExecute(() => importWallet(), "Import Wallet");
                 break;
             case "3":
-                await safeExecute(() => manageWalletMenu(), "Manage Wallet");
+                // Check authentication before wallet management
+                const isAuthenticated = await checkAuthenticationState();
+                if (isAuthenticated) {
+                    await safeExecute(() => manageWalletMenu(), "Manage Wallet");
+                }
                 break;
             case "4":
                 await safeExecute(() => checkBalance(), "Check Balance");
@@ -807,7 +870,11 @@ async function main() {
                 await safeExecute(() => sendTransaction(), "Send Transaction");
                 break;
             case "6":
-                await safeExecute(() => showTransactionHistory(), "Transaction History");
+                // Check authentication before transaction history
+                const isAuthForHistory = await checkAuthenticationState();
+                if (isAuthForHistory) {
+                    await safeExecute(() => showTransactionHistory(), "Transaction History");
+                }
                 break;
             case "7":
                 await safeExecute(() => showSettings(), "Settings");
