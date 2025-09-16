@@ -1,6 +1,6 @@
 # Contributing to EtherVault3 CLI
 
-Thank you for your interest in contributing to Web3-CLI-HD-Wallet! This document provides guidelines and information for contributors.
+Thank you for your interest in contributing to ETHERVAULT3-CLI-HD-Wallet! This document provides guidelines and information for contributors.
 
 ## 🤝 How to Contribute
 
@@ -35,8 +35,8 @@ We welcome feature suggestions! Please:
 1. **Fork the repository**
 2. **Clone your fork**:
    ```bash
-   git clone https://github.com/YOUR_USERNAME/web3-cli-wallet.git
-   cd web3-cli-wallet
+   git clone https://github.com/YOUR_USERNAME/ethervault3-cli-wallet.git
+   cd ethervault3-cli-wallet
    ```
 3. **Install dependencies**:
    ```bash
@@ -114,8 +114,8 @@ Brief description of changes
 
 1. **Clone and install**:
    ```bash
-   git clone https://github.com/RAHULDINDIGALA-32/web3-cli-wallet.git
-   cd web3-cli-wallet
+   git clone https://github.com/RAHULDINDIGALA-32/ethervault3-cli-wallet.git
+   cd ethervault3-cli-wallet
    npm install
    ```
 
@@ -262,7 +262,7 @@ We follow [Semantic Versioning](https://semver.org/):
 ### Contact
 - **Author**: RAHUL DINDIGALA
 - **GitHub**: [@RAHULDINDIGALA-32](https://github.com/RAHULDINDIGALA-32)
-- **Email**: [Your email if you want to share]
+- **Email**: rahul.dindigala32@outlook.com
 
 ## 📄 License
 

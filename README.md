@@ -63,10 +63,10 @@ A **secure**, **feature-rich**, and **user-friendly** Ethereum-only command-line
 
 ```bash
 # Clone the repository
-git clone https://github.com/RAHULDINDIGALA-32/web3-cli-wallet.git
+git clone https://github.com/RAHULDINDIGALA-32/ethervault3-cli-wallet.git
 
 # Navigate to project directory
-cd web3-cli-wallet
+cd ethervault3-cli-wallet
 
 # Install dependencies
 npm install
@@ -115,7 +115,7 @@ npm start
 │ 5. 📤 Send Transaction                                                     │
 │ 6. 📋 Transaction History                                                  │
 │ 7. ⚙️  Settings                                                            │
-│ 8. ❌ Exit Program                                                         │
+│ 8. ❌ Exit Application                                                        │
 └─────────────────────────────────────────────────────────────────────────────┘
 ```
 
@@ -222,8 +222,10 @@ npm update            # Update dependencies
 
 ```bash
 # Clone repository
-git clone https://github.com/RAHULDINDIGALA-32/web3-cli-wallet.git
-cd web3-cli-wallet
+git clone https://github.com/RAHULDINDIGALA-32/ethervault3-cli-wallet.git
+
+# Navigate to project directory
+cd ethervault3-cli.git
 
 # Install dependencies
 npm install
@@ -325,8 +327,9 @@ Additional formatting options (timestamps, categories, emojis) can be toggled in
 
 ### Storage Location
 
-- **Windows**: `C:\Users\[Username]\OneDrive\Desktop\CS_17\web3\projects\web3-cli-wallet\.wallet-storage\`
+- **Windows**: `\.wallet-storage\`
 - **Linux/Mac**: `~/.wallet-storage/`
+(`.wallet-storage/` located in the current working directory where you run the application)
 
 **Files:**
 - `user.json` - User profile (plaintext)
@@ -427,6 +430,7 @@ This project is licensed under the MIT License - see the [LICENSE](LICENSE) file
 - **inquirer.js** - Interactive CLI prompts
 - **Node.js** - Runtime environment
 - **TypeScript** - Type safety
+- **Chalk** - Terminal string styling
 - **Web3 Community** - Inspiration and support
 
 ## 📊 Project Stats
