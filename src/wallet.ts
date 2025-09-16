@@ -2,6 +2,8 @@ import { Wallet, HDNodeWallet, ethers } from "ethers";
 import { NETWORKS } from "./networks.js";
 import inquirer from "inquirer";
 import { secureStorage } from "./storage.js";
+import chalk from "chalk";
+import { log, LogCategory } from "./logger.js";
 import type { StoredWallet, TransactionRecord, WalletAccount } from "./storage.js";
 import * as crypto from "crypto";
 
@@ -10,9 +12,24 @@ let currentWalletId: string | null = null;
 
 // Error handling utilities
 function handleWalletError(error: any, context: string): void {
-    console.log(`\n❌ Error in ${context}:`);
-    console.log(error.message || error);
-    console.log("\n🔄 Returning to main menu...\n");
+    // Determine user-friendly message based on error type
+    let userMessage = "An unexpected error occurred. Please try again.";
+    
+    if (error.message) {
+        if (error.message.includes('Insufficient balance')) {
+            userMessage = "Insufficient balance for this transaction. Please check your account balance.";
+        } else if (error.message.includes('Network')) {
+            userMessage = "Network connection error. Please check your internet connection and try again.";
+        } else if (error.message.includes('Gas')) {
+            userMessage = "Transaction failed due to gas estimation error. Please try again.";
+        } else if (error.message.includes('Invalid address')) {
+            userMessage = "Invalid address format. Please check the address and try again.";
+        } else if (error.message.includes('Invalid amount')) {
+            userMessage = "Invalid amount. Please enter a valid number greater than 0.";
+        }
+    }
+    
+    log.userError(context, userMessage, error);
 }
 
 async function safeWalletExecute<T>(operation: () => Promise<T>, context: string): Promise<T | null> {
@@ -26,18 +43,18 @@ async function safeWalletExecute<T>(operation: () => Promise<T>, context: string
 
 export async function createWallet() {
     try {
-        console.log("\n=== Create New Wallet ===");
+        log.info(LogCategory.WALLET, "Creating new HD wallet...");
         
         const wallet = HDNodeWallet.createRandom();
         currentMnemonic = wallet.mnemonic?.phrase.trim() || "";
 
-        console.log("\nWallet created successfully!");
-        console.log("-------------------------");
-        console.log("Mnemonic Phrase:\n", wallet.mnemonic?.phrase);
-        console.log("Address:\n", wallet.address);
-        console.log("Public Key:\n", wallet.publicKey);
-        console.log("Private Key:\n", wallet.privateKey);
-        console.log("-------------------------\n");
+        log.operationSuccess("Wallet Creation");
+        log.info(LogCategory.WALLET, "Wallet Details:");
+        log.info(LogCategory.WALLET, `Address: ${wallet.address}`);
+        log.info(LogCategory.WALLET, `Public Key: ${wallet.publicKey}`);
+        log.securityWarning("IMPORTANT: Save your mnemonic phrase securely!");
+        log.info(LogCategory.WALLET, `Mnemonic: ${wallet.mnemonic?.phrase}`);
+        log.securityWarning("Never share your private key or mnemonic with anyone!");
 
         // Ask if user wants to save the wallet
         const saveAnswer = await inquirer.prompt([
@@ -66,9 +83,9 @@ export async function createWallet() {
 
             try {
                 currentWalletId = await secureStorage.saveWallet(wallet, nameAnswer.name.trim());
-                console.log("✅ Wallet saved securely!");
+                log.walletCreated(nameAnswer.name.trim(), wallet.address);
             } catch (error) {
-                console.log("❌ Failed to save wallet:", error);
+                log.storageError("Save Wallet", error);
             }
         }
 
@@ -465,11 +482,12 @@ export async function sendTransaction() {
         const balanceInEther = parseFloat(ethers.formatEther(balance));
         const amountToSend = parseFloat(answers.amount);
 
-        console.log(`\nCurrent balance: ${balanceInEther} ETH`);
-        console.log(`Amount to send: ${amountToSend} ETH`);
+        log.balanceChecked(wallet.address, balanceInEther.toString(), answers.network);
+        log.info(LogCategory.TRANSACTION, `Amount to send: ${amountToSend} ETH`);
 
         if (amountToSend >= balanceInEther) {
-            console.log("Insufficient balance to send transaction.");
+            log.error(LogCategory.TRANSACTION, "Insufficient balance for transaction");
+            log.warn(LogCategory.TRANSACTION, `Required: ${amountToSend} ETH, Available: ${balanceInEther} ETH`);
             return;
         }
 
@@ -511,26 +529,22 @@ export async function sendTransaction() {
         ]);
 
         if (!confirmAnswer.confirm) {
-            console.log("Transaction cancelled.");
+            log.info(LogCategory.TRANSACTION, "Transaction cancelled by user");
             return;
         }
 
         // Send transaction
-        console.log("\nSending transaction...");
+        log.progress("Sending transaction...");
         const txnResponse = await connectedWallet.sendTransaction(transaction);
         
-        console.log("Transaction sent!");
-        console.log("Transaction hash:", txnResponse.hash);
-        console.log("Waiting for confirmation...");
+        log.transactionSent(txnResponse.hash, toAddress, answers.amount);
+        log.progress("Waiting for confirmation...");
 
         // Wait for confirmation
         const receipt = await txnResponse.wait();
         
         if (receipt) {
-            console.log("Transaction confirmed!");
-            console.log("Block number:", receipt.blockNumber);
-            console.log("Gas used:", receipt.gasUsed.toString());
-            console.log("Transaction hash:", receipt.hash);
+            log.transactionConfirmed(receipt.hash, receipt.blockNumber, receipt.gasUsed.toString());
 
             // Save transaction to history
             if (currentWalletId) {
@@ -743,8 +757,8 @@ export async function showInfo() {
 }
 
 export async function showTransactionHistory() {
-    console.log("\n📋 Transaction History (All Accounts)");
-    console.log("=".repeat(50));
+    console.log(chalk.white("\n📋 Transaction History (All Accounts)"));
+    console.log(chalk.white("=".repeat(50)));
     
     try {
         // Check authentication before proceeding
@@ -1018,12 +1032,12 @@ export async function checkAccountBalance(wallet: any, accountIndex: number): Pr
 }
 
 export async function sendAccountTransaction(wallet: any, accountIndex: number): Promise<void> {
-    console.log("\n📤 Send Transaction from Account");
-    console.log("=".repeat(40));
+    console.log(chalk.white("\n📤 Send Transaction from Account"));
+    console.log(chalk.white("=".repeat(40)));
     
     const account = wallet.accounts[accountIndex];
-    console.log(`From Account: ${account.address}`);
-    console.log(`Network: ${wallet.network}`);
+    console.log(chalk.white(`From Account: ${account.address}`));
+    console.log(chalk.white(`Network: ${wallet.network}`));
     
     try {
         const { NETWORKS } = await import("./networks.js");
@@ -1081,11 +1095,11 @@ export async function sendAccountTransaction(wallet: any, accountIndex: number):
         const balanceInEther = parseFloat(ethers.formatEther(balance));
         const amountToSend = parseFloat(answers.amount);
 
-        console.log(`\nCurrent balance: ${balanceInEther} ETH`);
-        console.log(`Amount to send: ${amountToSend} ETH`);
+        console.log(chalk.white(`\nCurrent balance: ${balanceInEther} ETH`));
+        console.log(chalk.white(`Amount to send: ${amountToSend} ETH`));
 
         if (amountToSend >= balanceInEther) {
-            console.log("❌ Insufficient balance to send transaction.");
+            console.log(chalk.red("❌ Insufficient balance to send transaction."));
             return;
         }
 
@@ -1132,21 +1146,46 @@ export async function sendAccountTransaction(wallet: any, accountIndex: number):
         }
 
         // Send transaction
-        console.log("\n📤 Sending transaction...");
+        console.log(chalk.cyan("\n📤 Sending transaction..."));
         const txnResponse = await walletInstance.sendTransaction(transaction);
         
-        console.log("✅ Transaction sent!");
-        console.log(`Transaction hash: ${txnResponse.hash}`);
-        console.log("⏳ Waiting for confirmation...");
+        console.log(chalk.green("✅ Transaction sent!"));
+        console.log(chalk.white(`Transaction hash: ${txnResponse.hash}`));
+        console.log(chalk.cyan("⏳ Waiting for confirmation..."));
 
         // Wait for confirmation
         const receipt = await txnResponse.wait();
         
         if (receipt) {
-            console.log("✅ Transaction confirmed!");
-            console.log(`Block number: ${receipt.blockNumber}`);
-            console.log(`Gas used: ${receipt.gasUsed.toString()}`);
-            console.log(`Transaction hash: ${receipt.hash}`);
+            console.log(chalk.green("✅ Transaction confirmed!"));
+            console.log(chalk.white(`Block number: ${receipt.blockNumber}`));
+            console.log(chalk.white(`Gas used: ${receipt.gasUsed.toString()}`));
+            console.log(chalk.white(`Transaction hash: ${receipt.hash}`));
+
+            // Save transaction to history
+            const transactionRecord: TransactionRecord = {
+                id: crypto.randomUUID(),
+                walletId: wallet.id,
+                type: 'send',
+                hash: receipt.hash,
+                from: account.address,
+                to: toAddress,
+                amount: answers.amount,
+                network: wallet.network,
+                gasUsed: receipt.gasUsed.toString(),
+                gasPrice: gasPrice.toString(),
+                blockNumber: receipt.blockNumber,
+                timestamp: new Date().toISOString(),
+                status: 'confirmed'
+            };
+
+            try {
+                await secureStorage.saveTransaction(transactionRecord);
+                await secureStorage.updateWalletLastUsed(wallet.id);
+                console.log("💾 Transaction saved to history");
+            } catch (error) {
+                console.log("⚠️  Warning: Failed to save transaction history:", error);
+            }
         }
 
     } catch (error) {
@@ -1253,6 +1292,248 @@ export async function getAccountSecrets(wallet: any, accountIndex: number): Prom
         
     } catch (error) {
         handleWalletError(error, "Show Account Secrets");
+    }
+}
+
+export async function airdropTokens(wallet: any, accountIndex: number): Promise<void> {
+    console.log("\n🎁 Airdrop Tokens");
+    console.log("=".repeat(50));
+    
+    const account = wallet.accounts[accountIndex];
+    console.log(`From Account: ${account.address}`);
+    console.log(`Network: ${wallet.network}`);
+    
+    try {
+        const { NETWORKS } = await import("./networks.js");
+        const provider = new ethers.JsonRpcProvider(NETWORKS[wallet.network]);
+        
+        // Get private key for this account
+        const { privateKey } = await secureStorage.decryptWallet(wallet);
+        const walletInstance = new ethers.Wallet(privateKey, provider);
+        
+        // Get current balance
+        const balance = await provider.getBalance(account.address);
+        const balanceInEther = parseFloat(ethers.formatEther(balance));
+        
+        console.log(`\nCurrent Balance: ${balanceInEther} ETH`);
+        
+        // Get airdrop parameters
+        const answers = await inquirer.prompt([
+            {
+                type: "input",
+                name: "recipients",
+                message: "Enter recipient addresses (comma-separated):",
+                validate: (input: string) => {
+                    if (!input || input.trim().length === 0) {
+                        return "Please enter at least one recipient address.";
+                    }
+                    
+                    const addresses = input.split(',').map((addr: string) => addr.trim());
+                    if (addresses.length === 0) {
+                        return "Please enter at least one recipient address.";
+                    }
+                    
+                    if (addresses.length > 50) {
+                        return "Maximum 50 recipients allowed per airdrop.";
+                    }
+                    
+                    for (const addr of addresses) {
+                        try {
+                            ethers.getAddress(addr);
+                        } catch {
+                            return `Invalid address: ${addr}`;
+                        }
+                    }
+                    
+                    return true;
+                }
+            },
+            {
+                type: "input",
+                name: "amount",
+                message: "Enter amount to send per recipient (in ETH):",
+                validate: (input: string) => {
+                    const amount = parseFloat(input);
+                    if (isNaN(amount) || amount <= 0) {
+                        return "Please enter a valid amount greater than 0.";
+                    }
+                    return true;
+                }
+            },
+            {
+                type: "input",
+                name: "gasPrice",
+                message: "Enter gas price in Gwei (leave empty for automatic):",
+                validate: (input: string) => {
+                    if (!input || input.trim() === "") {
+                        return true;
+                    }
+                    const gasPrice = parseFloat(input);
+                    if (isNaN(gasPrice) || gasPrice <= 0) {
+                        return "Please enter a valid gas price greater than 0.";
+                    }
+                    return true;
+                }
+            }
+        ]);
+
+        const recipients = answers.recipients.split(',').map((addr: string) => addr.trim());
+        const amountPerRecipient = parseFloat(answers.amount);
+        const totalAmount = amountPerRecipient * recipients.length;
+        
+        // Get gas price
+        let gasPrice;
+        if (answers.gasPrice && answers.gasPrice.trim() !== "") {
+            gasPrice = ethers.parseUnits(answers.gasPrice, "gwei");
+        } else {
+            const feeData = await provider.getFeeData();
+            gasPrice = feeData.gasPrice || ethers.parseUnits("20", "gwei");
+        }
+        
+        // Estimate gas for a single transaction
+        const testTx = {
+            to: recipients[0],
+            value: ethers.parseEther(amountPerRecipient.toString()),
+            gasLimit: 21000 // Standard transfer
+        };
+        
+        let gasEstimate;
+        try {
+            gasEstimate = await provider.estimateGas(testTx);
+        } catch (error) {
+            gasEstimate = BigInt(21000); // Fallback to standard gas limit
+        }
+        
+        const gasCostPerTx = gasEstimate * gasPrice;
+        const totalGasCost = gasCostPerTx * BigInt(recipients.length);
+        const totalCost = ethers.parseEther(totalAmount.toString()) + totalGasCost;
+        const totalCostInEther = parseFloat(ethers.formatEther(totalCost));
+        
+        console.log("\n📊 Airdrop Summary:");
+        console.log("=".repeat(50));
+        console.log(`Recipients: ${recipients.length}`);
+        console.log(`Amount per recipient: ${amountPerRecipient} ETH`);
+        console.log(`Total amount: ${totalAmount} ETH`);
+        console.log(`Gas price: ${ethers.formatUnits(gasPrice, "gwei")} Gwei`);
+        console.log(`Gas per transaction: ${gasEstimate.toString()}`);
+        console.log(`Total gas cost: ${ethers.formatEther(totalGasCost)} ETH`);
+        console.log(`Total cost: ${totalCostInEther} ETH`);
+        console.log(`Current balance: ${balanceInEther} ETH`);
+        console.log(`Remaining after airdrop: ${(balanceInEther - totalCostInEther).toFixed(6)} ETH`);
+        console.log("=".repeat(50));
+        
+        if (totalCostInEther > balanceInEther) {
+            console.log("❌ Insufficient balance for airdrop.");
+            return;
+        }
+        
+        // Confirm airdrop
+        const confirmAnswer = await inquirer.prompt([
+            {
+                type: "confirm",
+                name: "confirm",
+                message: `Proceed with airdrop to ${recipients.length} recipients?`,
+                default: false
+            }
+        ]);
+        
+        if (!confirmAnswer.confirm) {
+            console.log("❌ Airdrop cancelled.");
+            return;
+        }
+        
+        // Execute airdrop
+        log.info(LogCategory.TRANSACTION, "Starting airdrop process...");
+        const results = {
+            successful: 0,
+            failed: 0,
+            transactions: [] as any[]
+        };
+        
+        for (let i = 0; i < recipients.length; i++) {
+            const recipient = recipients[i];
+            log.airdropProgress(i + 1, recipients.length, recipient);
+            
+            try {
+                const transaction = {
+                    to: recipient,
+                    value: ethers.parseEther(amountPerRecipient.toString()),
+                    gasLimit: gasEstimate,
+                    gasPrice: gasPrice
+                };
+                
+                const txnResponse = await walletInstance.sendTransaction(transaction);
+                log.transactionSent(txnResponse.hash, recipient, amountPerRecipient.toString());
+                
+                // Wait for confirmation
+                const receipt = await txnResponse.wait();
+                
+                if (receipt) {
+                    results.successful++;
+                    results.transactions.push({
+                        hash: receipt.hash,
+                        to: recipient,
+                        amount: amountPerRecipient,
+                        blockNumber: receipt.blockNumber,
+                        gasUsed: receipt.gasUsed.toString(),
+                        status: 'confirmed'
+                    });
+                    log.transactionConfirmed(receipt.hash, receipt.blockNumber, receipt.gasUsed.toString());
+                    
+                    // Save transaction record
+                    const transactionRecord: TransactionRecord = {
+                        id: crypto.randomUUID(),
+                        walletId: wallet.id,
+                        type: 'send',
+                        hash: receipt.hash,
+                        from: account.address,
+                        to: recipient,
+                        amount: amountPerRecipient.toString(),
+                        network: wallet.network,
+                        gasUsed: receipt.gasUsed.toString(),
+                        gasPrice: gasPrice.toString(),
+                        blockNumber: receipt.blockNumber,
+                        timestamp: new Date().toISOString(),
+                        status: 'confirmed'
+                    };
+                    
+                    try {
+                        await secureStorage.saveTransaction(transactionRecord);
+                    } catch (error) {
+                        log.storageError("Save Transaction Record", error);
+                    }
+                }
+                
+            } catch (error) {
+                log.error(LogCategory.TRANSACTION, `Failed to send to ${recipient}`, error);
+                results.failed++;
+            }
+            
+            // Add small delay to avoid rate limiting
+            if (i < recipients.length - 1) {
+                await new Promise(resolve => setTimeout(resolve, 1000));
+            }
+        }
+        
+        // Summary
+        log.airdropComplete(results.successful, results.failed, recipients.length);
+        
+        if (results.successful > 0) {
+            console.log("\n📋 Transaction Details:");
+            results.transactions.forEach((tx, index) => {
+                console.log(`${index + 1}. ${tx.to} - ${tx.amount} ETH - ${tx.hash}`);
+            });
+        }
+        
+        // Update wallet last used
+        try {
+            await secureStorage.updateWalletLastUsed(wallet.id);
+        } catch (error) {
+            console.log("⚠️  Warning: Failed to update wallet last used timestamp");
+        }
+        
+    } catch (error) {
+        console.log("❌ Error during airdrop:", error);
     }
 }
 

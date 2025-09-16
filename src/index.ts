@@ -1,6 +1,8 @@
 import inquirer from "inquirer";
-import { createWallet, importWallet, checkBalance, sendTransaction, showTransactionHistory, manageWallets, checkAccountBalance, sendAccountTransaction, getAccountTransactionHistory, getAccountSecrets } from "./wallet.js";
+import chalk from "chalk";
+import { createWallet, importWallet, checkBalance, sendTransaction, showTransactionHistory, manageWallets, checkAccountBalance, sendAccountTransaction, getAccountTransactionHistory, getAccountSecrets, airdropTokens } from "./wallet.js";
 import { secureStorage } from "./storage.js";
+import { log, LogCategory } from "./logger.js";
 import * as fs from 'fs';
 import * as path from 'path';
 import { HDNodeWallet, ethers } from "ethers";
@@ -10,8 +12,26 @@ let currentUser: { username: string; isFirstTime: boolean } | null = null;
 
 // Error handling utilities
 function handleError(error: any, context: string): void {
-    console.log(`\n❌ Error in ${context}:`);
-    console.log(error.message || error);
+    // Determine user-friendly message based on error type
+    let userMessage = "An unexpected error occurred. Please try again.";
+    
+    if (error.message) {
+        if (error.message.includes('Master password not set')) {
+            userMessage = "Authentication required. Please enter your master password.";
+        } else if (error.message.includes('Decryption failed')) {
+            userMessage = "Invalid master password. Please check your password and try again.";
+        } else if (error.message.includes('Invalid master password')) {
+            userMessage = "Incorrect master password. Please verify your password.";
+        } else if (error.message.includes('Insufficient balance')) {
+            userMessage = "Insufficient balance for this transaction. Please check your account balance.";
+        } else if (error.message.includes('Network')) {
+            userMessage = "Network connection error. Please check your internet connection and try again.";
+        } else if (error.message.includes('Gas')) {
+            userMessage = "Transaction failed due to gas estimation error. Please try again.";
+        }
+    }
+    
+    log.userError(context, userMessage, error);
     
     // Reset authentication state for certain errors
     if (error.message && (
@@ -21,8 +41,6 @@ function handleError(error: any, context: string): void {
     )) {
         resetAuthenticationState();
     }
-    
-    console.log("\n🔄 Returning to main menu...\n");
 }
 
 async function safeExecute<T>(operation: () => Promise<T>, context: string): Promise<T | null> {
@@ -49,32 +67,48 @@ async function checkAuthenticationState(): Promise<boolean> {
         // Check if master key is still valid
         const masterKey = secureStorage.getMasterKey();
         if (!masterKey) {
-            console.log("\n🔐 Authentication required. Please re-enter your master password.\n");
-            const passwordAnswer = await inquirer.prompt([
-                {
-                    type: "password",
-                    name: "password",
-                    message: "Enter your master password:",
-                    mask: "*",
-                    validate: (input: string) => {
-                        if (!input || input.trim().length === 0) {
-                            return "Password cannot be empty. Please enter your master password.";
+            log.info(LogCategory.AUTH, "Authentication required. Please re-enter your master password.");
+            
+            let isValid = false;
+            let attempts = 0;
+            const maxAttempts = 3;
+            
+            while (!isValid && attempts < maxAttempts) {
+                const passwordAnswer = await inquirer.prompt([
+                    {
+                        type: "password",
+                        name: "password",
+                        message: attempts === 0 ? "Enter your master password:" : `Enter your master password (attempt ${attempts + 1}/${maxAttempts}):`,
+                        mask: "*",
+                        validate: (input: string) => {
+                            if (!input || input.trim().length === 0) {
+                                return "Password cannot be empty. Please enter your master password.";
+                            }
+                            return true;
                         }
-                        return true;
+                    }
+                ]);
+
+                isValid = await secureStorage.loadMasterPassword(passwordAnswer.password);
+                if (!isValid) {
+                    attempts++;
+                    if (attempts < maxAttempts) {
+                        log.authFailed(attempts, maxAttempts);
+                        log.warn(LogCategory.AUTH, `${maxAttempts - attempts} attempts remaining.`);
+                    } else {
+                        log.error(LogCategory.AUTH, "Maximum authentication attempts reached. Access denied.");
+                        return false;
                     }
                 }
-            ]);
-
-            const isValid = await secureStorage.loadMasterPassword(passwordAnswer.password);
-            if (!isValid) {
-                console.log("❌ Invalid master password. Please try again.");
-                return false;
             }
-            console.log("✅ Authentication successful!");
+            
+            if (isValid) {
+                log.authSuccess("user");
+            }
         }
         return true;
     } catch (error) {
-        console.log("❌ Authentication failed:", error);
+        log.error(LogCategory.AUTH, "Authentication process failed", error);
         return false;
     }
 }
@@ -85,42 +119,25 @@ function resetAuthenticationState(): void {
     console.log("🔄 Authentication state reset. Please re-authenticate when needed.");
 }
 
+
+
 function displayTitleScreen() {
     console.clear();
     console.log("\n");
-    console.log("╔════════════════════════════════════════════════════════════════════════════════╗");
-    console.log("║                                                                                ║");
-    console.log("║  ██████╗██╗     ██╗    ██╗    ██╗ █████╗ ██╗     ██╗████████╗███████╗███████╗  ║");
-    console.log("║ ██╔════╝██║     ██║    ██║    ██║██╔══██╗██║     ██║╚══██╔══╝██╔════╝██╔════╝  ║");
-    console.log("║ ██║     ██║     ██║    ██║ █╗ ██║███████║██║     ██║   ██║   █████╗  ███████╗  ║");
-    console.log("║ ██║     ██║     ██║    ██║███╗██║██╔══██║██║     ██║   ██║   ██╔══╝  ╚════██║  ║");
-    console.log("║ ╚██████╗███████╗██║    ╚███╔███╔╝██║  ██║███████╗██║   ██║   ███████╗███████║  ║");
-    console.log("║  ╚═════╝╚══════╝╚═╝     ╚══╝╚══╝ ╚═╝  ╚═╝╚══════╝╚═╝   ╚═╝   ╚══════╝╚══════╝  ║");
-    console.log("║                                                                                ║");
-    console.log("║                              CLI HD WALLET                                     ║");
-    console.log("║                                                                                 ║");
-    console.log("║  ██████╗ ██╗     ██╗    ██╗    ██╗ █████╗ ██╗     ██╗████████╗███████╗███████╗  ║");
-    console.log("║ ██╔════╝ ██║     ██║    ██║    ██║██╔══██╗██║     ██║╚══██╔══╝██╔════╝██╔════╝  ║");
-    console.log("║ ██║  ███╗██║     ██║    ██║ █╗ ██║███████║██║     ██║   ██║   █████╗  ███████╗  ║");
-    console.log("║ ██║   ██║██║     ██║    ██║███╗██║██╔══██║██║     ██║   ██║   ██╔══╝  ╚════██║  ║");
-    console.log("║ ╚██████╔╝███████╗██║    ╚███╔███╔╝██║  ██║███████╗██║   ██║   ███████╗███████║  ║");
-    console.log("║  ╚═════╝ ╚══════╝╚═╝     ╚══╝╚══╝ ╚═╝  ╚═╝╚══════╝╚═╝   ╚═╝   ╚══════╝╚══════╝  ║");
-    console.log("║                                                                              ║");
-    console.log("║  ██╗   ██╗ █████╗ ██╗     ██╗     ███████╗████████╗███████╗███████╗███████╗  ║");
-    console.log("║  ██║   ██║██╔══██╗██║     ██║     ██╔════╝╚══██╔══╝██╔════╝██╔════╝██╔════╝  ║");
-    console.log("║  ██║   ██║███████║██║     ██║     █████╗     ██║   █████╗  ███████╗███████╗  ║");
-    console.log("║  ╚██╗ ██╔╝██╔══██║██║     ██║     ██╔══╝     ██║   ██╔══╝  ╚════██║╚════██║  ║");
-    console.log("║   ╚████╔╝ ██║  ██║███████╗███████╗███████╗   ██║   ███████╗███████║███████║  ║");
-    console.log("║    ╚═══╝  ╚═╝  ╚═╝╚══════╝╚══════╝╚══════╝   ╚═╝   ╚══════╝╚══════╝╚══════╝  ║");
-    console.log("║                                                                              ║");
-    console.log("║                           Version 1.0.0                                      ║");
-    console.log("║                           Created by RAHUL DINDIGALA (Web3 Developer)        ║");
-    console.log("║                           (https://github.com/RAHULDINDIGALA-32)             ║");
-    console.log("║                                                                              ║");
-    console.log("║                                                                              ║");
-    console.log("╚══════════════════════════════════════════════════════════════════════════════╝");
+    console.log(chalk.bold.cyanBright("    ███████╗████████╗██╗  ██╗███████╗██████╗ ██╗   ██╗ █████╗ ██╗   ██╗██╗  ████████╗██████╗ "));
+    console.log(chalk.bold.cyanBright("    ██╔════╝╚══██╔══╝██║  ██║██╔════╝██╔══██╗██║   ██║██╔══██╗██║   ██║██║  ╚══██╔══╝╚════██╗"));
+    console.log(chalk.bold.cyanBright("    █████╗     ██║   ███████║█████╗  ██████╔╝██║   ██║███████║██║   ██║██║     ██║    █████╔╝"));
+    console.log(chalk.bold.cyanBright("    ██╔══╝     ██║   ██╔══██║██╔══╝  ██╔══██╗╚██╗ ██╔╝██╔══██║██║   ██║██║     ██║    ╚═══██╗"));
+    console.log(chalk.bold.cyanBright("    ███████╗   ██║   ██║  ██║███████╗██║  ██║ ╚████╔╝ ██║  ██║╚██████╔╝███████╗██║   ██████╔╝"));
+    console.log(chalk.bold.cyanBright("    ╚══════╝   ╚═╝   ╚═╝  ╚═╝╚══════╝╚═╝  ╚═╝  ╚═══╝  ╚═╝  ╚═╝ ╚═════╝ ╚══════╝╚═╝   ╚═════╝ "));
+    console.log("\n");
+    console.log(chalk.cyan("Web3 CLI Wallet Application"));
+    console.log(chalk.yellow("Version 1.0.0"));
+    console.log(chalk.green("Author: RAHUL DINDIGALA (Web3 Developer)"));
+    console.log(chalk.yellow("GitHub: https://github.com/RAHULDINDIGALA-32/ethervault3-cli-wallet"));
     console.log("\n");
 }
+
 
 async function setupUser(): Promise<boolean> {
     try {
@@ -129,8 +146,8 @@ async function setupUser(): Promise<boolean> {
         const isFirstTime = !fs.existsSync(userDataFile);
         
         if (isFirstTime) {
-            console.log("🔐 First time setup detected!");
-            console.log("Please create your user profile and master password.\n");
+            console.log(chalk.bold.blueBright("🔐 First time setup detected!"));
+            console.log(chalk.blue("Please create your user profile and master password.\n"));
             
             const userSetup = await inquirer.prompt([
                 {
@@ -168,7 +185,7 @@ async function setupUser(): Promise<boolean> {
             ]);
 
             if (userSetup.password !== userSetup.confirmPassword) {
-                console.log("❌ Passwords do not match. Please try again.");
+                console.log(chalk.red("❌ Passwords do not match. Please try again."));
                 return false;
             }
 
@@ -186,35 +203,56 @@ async function setupUser(): Promise<boolean> {
             // Setup master password
             await secureStorage.setMasterPassword(userSetup.password);
             
-            console.log("✅ User profile created successfully!");
-            console.log("⚠️  IMPORTANT: Remember your master password! You'll need it every time you use the wallet.");
-            console.log("⚠️  If you forget it, you'll lose access to all stored wallets.\n");
+            console.log(chalk.green("✅ User profile created successfully!"));
+            console.log(chalk.yellow("⚠️  IMPORTANT: Remember your master password! You'll need it every time you use the wallet."));
+            console.log(chalk.yellow("⚠️  If you forget it, you'll lose access to all stored wallets.\n"));
             
         } else {
             // Load existing user data
             const userData = JSON.parse(fs.readFileSync(userDataFile, 'utf8'));
             currentUser = { username: userData.username, isFirstTime: false };
             
-            // Ask for master password
-            const passwordAnswer = await inquirer.prompt([
-                {
-                    type: "password",
-                    name: "password",
-                    message: "Enter your master password:",
-                    mask: "*"
-                }
-            ]);
+            // Ask for master password with retry loop
+            let isValid = false;
+            let attempts = 0;
+            const maxAttempts = 3;
+            
+            while (!isValid && attempts < maxAttempts) {
+                const passwordAnswer = await inquirer.prompt([
+                    {
+                        type: "password",
+                        name: "password",
+                        message: attempts === 0 ? "Enter your master password:" : `Enter your master password (attempt ${attempts + 1}/${maxAttempts}):`,
+                        mask: "*",
+                        validate: (input: string) => {
+                            if (!input || input.trim().length === 0) {
+                                return "Password cannot be empty. Please enter your master password.";
+                            }
+                            return true;
+                        }
+                    }
+                ]);
 
-            const isValid = await secureStorage.loadMasterPassword(passwordAnswer.password);
+                isValid = await secureStorage.loadMasterPassword(passwordAnswer.password);
+                if (!isValid) {
+                    attempts++;
+                    if (attempts < maxAttempts) {
+                        console.log(chalk.red(`❌ Invalid master password. ${maxAttempts - attempts} attempts remaining.`));
+                    } else {
+                        console.log(chalk.red("❌ Maximum attempts reached. Authentication failed."));
+                        return false;
+                    }
+                }
+            }
+            
             if (!isValid) {
-                console.log("❌ Invalid master password. Please try again.");
                 return false;
             }
         }
         
         return true;
     } catch (error) {
-        console.log("❌ Failed to setup user:", error);
+        console.log(chalk.red("❌ Failed to setup user:", error));
         return false;
     }
 }
@@ -240,13 +278,13 @@ async function setupMasterPassword(): Promise<boolean> {
 
                 const isValid = await secureStorage.loadMasterPassword(passwordAnswer.password);
                 if (!isValid) {
-                    console.log("❌ Invalid master password. Please try again.");
+                    console.log(chalk.red("❌ Invalid master password. Please try again."));
                     return false;
                 }
                 return true;
             } else {
                 // First time setup - create new master password
-                console.log("\n🔐 First time setup detected!");
+                console.log(chalk.bold.blueBright("\n🔐 First time setup detected!"));
                 console.log("You need to create a master password to encrypt your wallet data.");
                 console.log("This password will protect all your stored wallets and private keys.\n");
                 
@@ -254,7 +292,7 @@ async function setupMasterPassword(): Promise<boolean> {
                     {
                         type: "password",
                         name: "password",
-                        message: "Create a master password:",
+                        message: chalk.blue("Create a master password:"),
                         mask: "*",
                         validate: (input: string) => {
                             if (!input || input.length < 8) {
@@ -266,25 +304,25 @@ async function setupMasterPassword(): Promise<boolean> {
                     {
                         type: "password",
                         name: "confirmPassword",
-                        message: "Confirm master password:",
+                        message: chalk.blue("Confirm master password:"),
                         mask: "*"
                     }
                 ]);
 
                 if (passwordAnswer.password !== passwordAnswer.confirmPassword) {
-                    console.log("❌ Passwords do not match. Please try again.");
+                    console.log(chalk.red("❌ Passwords do not match. Please try again."));
                     return false;
                 }
 
                 await secureStorage.setMasterPassword(passwordAnswer.password);
-                console.log("✅ Master password created successfully!");
-                console.log("⚠️  IMPORTANT: Remember this password! You'll need it every time you use the wallet.");
-                console.log("⚠️  If you forget it, you'll lose access to all stored wallets.\n");
+                console.log(chalk.green("✅ Master password created successfully!"));
+                console.log(chalk.yellow("⚠️  IMPORTANT: Remember this password! You'll need it every time you use the wallet."));
+                console.log(chalk.yellow("⚠️  If you forget it, you'll lose access to all stored wallets.\n"));
                 return true;
             }
         }
     } catch (error) {
-        console.log("❌ Failed to setup master password:", error);
+        console.log(chalk.red("❌ Failed to setup master password:", error));
         return false;
     }
     return true;
@@ -292,37 +330,37 @@ async function setupMasterPassword(): Promise<boolean> {
 
 function displayUserInfo() {
     if (currentUser) {
-        console.log("┌─────────────────────────────────────────────────────────────────────────────┐");
-        console.log("│                            Account Information                              │");
-        console.log("├─────────────────────────────────────────────────────────────────────────────┤");
-        console.log(`│ 👤 Username: ${currentUser.username.padEnd(60)} │`);
-        console.log("│ ✅ Status: Authenticated                                                    │");
-        console.log("└─────────────────────────────────────────────────────────────────────────────┘");
+        console.log(chalk.white("┌─────────────────────────────────────────────────────────────────────────────┐"));
+        console.log(chalk.white("│                            Account Information                              │"));
+        console.log(chalk.white("├─────────────────────────────────────────────────────────────────────────────┤"));
+        console.log(chalk.white(`│ 👤 Username: ${currentUser.username.padEnd(60)} │`));
+        console.log(chalk.white("│ ✅ Status: Authenticated                                                    │"));
+        console.log(chalk.white("└─────────────────────────────────────────────────────────────────────────────┘"));
         console.log();
     }
 }
 
 async function displayMainMenu(): Promise<string> {
     try {
-        console.log("┌─────────────────────────────────────────────────────────────────────────────┐");
-        console.log("│                            Available Options                                │");
-        console.log("├─────────────────────────────────────────────────────────────────────────────┤");
-        console.log("│ 1. 🆕 Create New Wallet                                                    │");
-        console.log("│ 2. 📥 Import Wallet from Mnemonic                                          │");
-        console.log("│ 3. 🗂️  Manage Wallet                                                       │");
-        console.log("│ 4. 💰 Check Balance                                                        │");
-        console.log("│ 5. 📤 Send Transaction                                                     │");
-        console.log("│ 6. 📋 Transaction History                                                  │");
-        console.log("│ 7. ⚙️  Settings                                                            │");
-        console.log("│ 8. ❌ Exit Program                                                         │");
-        console.log("└─────────────────────────────────────────────────────────────────────────────┘");
+        console.log(chalk.white("┌─────────────────────────────────────────────────────────────────────────────┐"));
+        console.log(chalk.white("│                            Available Options                                │"));
+        console.log(chalk.white("├─────────────────────────────────────────────────────────────────────────────┤"));
+        console.log(chalk.white("│ 1. 🆕 Create New Wallet                                                    │"));
+        console.log(chalk.white("│ 2. 📥 Import Wallet from Mnemonic                                          │"));
+        console.log(chalk.white("│ 3. 🗂️  Manage Wallet                                                       │"));
+        console.log(chalk.white("│ 4. 💰 Check Balance                                                        │"));
+        console.log(chalk.white("│ 5. 📤 Send Transaction                                                     │"));
+        console.log(chalk.white("│ 6. 📋 Transaction History                                                  │"));
+        console.log(chalk.white("│ 7. ⚙️  Settings                                                            │"));
+        console.log(chalk.white("│ 8. ❌ Exit Program                                                         │"));
+        console.log(chalk.white("└─────────────────────────────────────────────────────────────────────────────┘"));
         console.log();
 
         const answer = await inquirer.prompt([
             {
                 type: "input",
                 name: "choice",
-                message: "Please enter your choice (0-8):",
+                message: chalk.blue("Please enter your choice (0-8):"),
                 validate: (input: string) => {
                     const choice = parseInt(input);
                     if (isNaN(choice) || choice < 0 || choice > 8) {
@@ -345,14 +383,14 @@ async function manageWalletMenu(): Promise<void> {
         // Double-check authentication before proceeding
         const masterKey = secureStorage.getMasterKey();
         if (!masterKey) {
-            console.log("\n❌ Authentication required. Please re-enter your master password.");
+            console.log(chalk.red("\n❌ Authentication required. Please re-enter your master password."));
             return;
         }
 
         const wallets = await secureStorage.loadWallets();
         
         if (wallets.length === 0) {
-            console.log("\n❌ No saved wallets found.");
+            console.log(chalk.red("\n❌ No saved wallets found."));
             console.log("Please create or import a wallet first.\n");
             return;
         }
@@ -386,7 +424,7 @@ async function manageWalletMenu(): Promise<void> {
 
         const selectedWallet = wallets.find(w => w.id === walletAnswer.walletId);
         if (!selectedWallet) {
-            console.log("❌ Wallet not found.");
+            console.log(chalk.red("❌ Wallet not found."));
             return;
         }
 
@@ -452,6 +490,7 @@ async function accountSubMenu(wallet: any, accountIndex: number): Promise<void> 
         const choices = [
             { name: "💰 Check Balance", value: "balance" },
             { name: "📤 Send Transaction", value: "send" },
+            { name: "🎁 Airdrop Tokens", value: "airdrop" },
             { name: "📋 Transaction History", value: "history" },
             { name: "🔐 Secrets (Show Account Details)", value: "secrets" },
             { name: "🔙 Back (Account Selection)", value: "back" },
@@ -473,6 +512,9 @@ async function accountSubMenu(wallet: any, accountIndex: number): Promise<void> 
                 break;
             case "send":
                 await safeExecute(() => sendAccountTransaction(wallet, accountIndex), "Send Account Transaction");
+                break;
+            case "airdrop":
+                await safeExecute(() => airdropTokens(wallet, accountIndex), "Airdrop Tokens");
                 break;
             case "history":
                 await safeExecute(() => getAccountTransactionHistory(wallet, accountIndex), "Account Transaction History");
@@ -846,8 +888,8 @@ async function main() {
         switch (choice) {
             case "0":
             case "8":
-                console.log("\n🚀 Thank you for using CLI HD Wallet!");
-                console.log("👋 Goodbye!");
+                console.log(chalk.green.bold("\nTHANK YOU for using EtherVault3 CLI!"));
+                console.log(chalk.green.bold("GOODBYE!!"));
                 exit = true;
                 break;
             case "1":

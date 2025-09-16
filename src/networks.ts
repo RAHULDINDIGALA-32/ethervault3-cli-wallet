@@ -10,3 +10,6 @@ export const NETWORKS: { [key: string]: string } = {
     goerli: `https://goerli.infura.io/v3/${INFURA_PROJECT_ID}`,
     mainnet: `https://mainnet.infura.io/v3/${INFURA_PROJECT_ID}`,
 };
+
+// add custom providers & networks here as required
+

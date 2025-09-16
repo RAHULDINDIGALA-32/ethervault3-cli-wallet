@@ -2,6 +2,7 @@ import * as fs from 'fs';
 import * as path from 'path';
 import * as crypto from 'crypto';
 import { HDNodeWallet } from 'ethers';
+import { log, LogCategory } from './logger.js';
 
 // Storage configuration
 const STORAGE_DIR = path.join(process.cwd(), '.wallet-storage');
@@ -80,7 +81,7 @@ class SecureStorage {
                 return JSON.parse(data);
             }
         } catch (error) {
-            console.warn('Failed to load config, using defaults');
+            log.warn(LogCategory.STORAGE, 'Failed to load config, using defaults', error);
         }
         
         return {
@@ -94,7 +95,7 @@ class SecureStorage {
         try {
             fs.writeFileSync(CONFIG_FILE, JSON.stringify(this.config, null, 2), { mode: 0o600 });
         } catch (error) {
-            console.error('Failed to save config:', error);
+            log.storageError('Save Config', error);
         }
     }
 
@@ -164,14 +165,30 @@ class SecureStorage {
             const salt = Buffer.from(saltHex, 'hex');
             const testKey = this.deriveKey(password, salt);
             
-            // Test decryption with a dummy operation to verify the key is correct
-            this.encrypt('test', testKey);
+            // Test decryption with existing data to verify the key is correct
+            // Try to decrypt wallets file if it exists
+            if (fs.existsSync(WALLETS_FILE)) {
+                const encryptedData = fs.readFileSync(WALLETS_FILE, 'utf8');
+                this.decrypt(encryptedData, testKey); // This will throw if password is wrong
+            } else if (fs.existsSync(TRANSACTIONS_FILE)) {
+                // If no wallets file, try transactions file
+                const encryptedData = fs.readFileSync(TRANSACTIONS_FILE, 'utf8');
+                this.decrypt(encryptedData, testKey); // This will throw if password is wrong
+            } else {
+                // If no encrypted files exist, just test encryption/decryption cycle
+                const testData = 'test-validation';
+                const encrypted = this.encrypt(testData, testKey);
+                const decrypted = this.decrypt(encrypted, testKey);
+                if (decrypted !== testData) {
+                    throw new Error('Password validation failed');
+                }
+            }
             
-            // Only set masterKey if the test passed
+            // Only set masterKey if decryption test passed
             this.masterKey = testKey;
             return true;
         } catch (error) {
-            // Don't set masterKey if password is wrong
+            // Don't set masterKey if password is wrong or decryption fails
             this.masterKey = null;
             return false;
         }
@@ -282,7 +299,7 @@ class SecureStorage {
             const decryptedData = this.decrypt(encryptedData, this.masterKey);
             return JSON.parse(decryptedData);
         } catch (error) {
-            console.error('Failed to load wallets:', error);
+            log.storageError('Load Wallets', error);
             return [];
         }
     }
@@ -380,7 +397,7 @@ class SecureStorage {
             
             return walletId ? transactions.filter(t => t.walletId === walletId) : transactions;
         } catch (error) {
-            console.error('Failed to load transactions:', error);
+            log.storageError('Load Transactions', error);
             return [];
         }
     }
@@ -398,7 +415,7 @@ class SecureStorage {
                 fs.unlinkSync(saltFile);
             }
         } catch (error) {
-            console.error('Failed to clear data:', error);
+            log.storageError('Clear All Data', error);
         }
     }
 

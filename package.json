@@ -1,12 +1,12 @@
 {
-  "name": "web3-cli-wallet",
+  "name": "ethervault3-cli",
   "version": "1.0.0",
-  "description": "A secure, feature-rich CLI HD wallet for Ethereum testnets with encrypted local storage, transaction history, and developer-friendly tools",
+  "description": "EtherVault3 CLI – a secure Ethereum-only HD wallet for the terminal with AES-256 encryption, multi-account management, airdrops, and full transaction history",
   "main": "dist/index.js",
   "type": "module",
   "bin": {
-    "web3-wallet": "./dist/index.js",
-    "cli-wallet": "./dist/index.js"
+    "ethervault3": "./dist/index.js",
+    "ethervault3-cli": "./dist/index.js"
   },
   "scripts": {
     "start": "tsc && node dist/index.js",
@@ -23,7 +23,7 @@
   ],
   "repository": {
     "type": "git",
-    "url": "git+https://github.com/RAHULDINDIGALA-32/web3-cli-wallet.git"
+    "url": "git+https://github.com/RAHULDINDIGALA-32/ethervault3-cli-wallet.git"
   },
   "keywords": [
     "ethereum",
@@ -43,13 +43,14 @@
   "author": "RAHUL DINDIGALA",
   "license": "MIT",
   "bugs": {
-    "url": "https://github.com/RAHULDINDIGALA-32/web3-cli-wallet/issues"
+    "url": "https://github.com/RAHULDINDIGALA-32/ethervault3-cli-wallet/issues"
   },
-  "homepage": "https://github.com/RAHULDINDIGALA-32/web3-cli-wallet#readme",
+  "homepage": "https://github.com/RAHULDINDIGALA-32/ethervault3-cli-wallet#readme",
   "engines": {
     "node": ">=18.0.0"
   },
   "dependencies": {
+    "chalk": "^5.6.2",
     "dotenv": "^17.2.2",
     "ethers": "^6.15.0",
     "inquirer": "^12.9.4"
