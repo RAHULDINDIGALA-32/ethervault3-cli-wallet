@@ -3,6 +3,7 @@ import * as path from 'path';
 import * as crypto from 'crypto';
 import { HDNodeWallet } from 'ethers';
 import { log, LogCategory } from './logger.js';
+import chalk from 'chalk';
 
 // Storage configuration
 const STORAGE_DIR = path.join(process.cwd(), '.wallet-storage');

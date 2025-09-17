@@ -108,4 +108,7 @@ jspm_packages/
 
 # Temporary folders
 tmp/
-temp/
+temp/\
+
+# Desktop.ini
+desktop.ini

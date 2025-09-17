@@ -12,6 +12,11 @@ let currentUser: { username: string; isFirstTime: boolean } | null = null;
 
 // Error handling utilities
 function handleError(error: any, context: string): void {
+    // Gracefully handle user-initiated cancel (Ctrl+C)
+    if (error && (error.name === 'ExitPromptError' || error.code === 'SIGINT')) {
+        console.log(chalk.cyan('\nOperation cancelled by user.'));
+        return;
+    }
     // Determine user-friendly message based on error type
     let userMessage = "An unexpected error occurred. Please try again.";
     
@@ -82,7 +87,7 @@ async function checkAuthenticationState(): Promise<boolean> {
                         mask: "*",
                         validate: (input: string) => {
                             if (!input || input.trim().length === 0) {
-                                return "Password cannot be empty. Please enter your master password.";
+                                return "Password cannot be empty. Please enter your master password. (or press Ctrl+C to exit)";
                             }
                             return true;
                         }
@@ -103,7 +108,7 @@ async function checkAuthenticationState(): Promise<boolean> {
             }
             
             if (isValid) {
-                log.authSuccess("user");
+                log.authSuccess(currentUser?.username || 'User');
             }
         }
         return true;
@@ -333,8 +338,8 @@ function displayUserInfo() {
         console.log(chalk.white("┌─────────────────────────────────────────────────────────────────────────────┐"));
         console.log(chalk.white("│                            Account Information                              │"));
         console.log(chalk.white("├─────────────────────────────────────────────────────────────────────────────┤"));
-        console.log(chalk.white(`│ 👤 Username: ${currentUser.username.padEnd(60)} │`));
-        console.log(chalk.white("│ ✅ Status: Authenticated                                                    │"));
+        console.log(chalk.white(`│ 👤 Username: ${currentUser.username.padEnd(62)}|`));
+        console.log(chalk.white("│ ✅ Status: Authenticated                                                   │"));
         console.log(chalk.white("└─────────────────────────────────────────────────────────────────────────────┘"));
         console.log();
     }
@@ -347,11 +352,11 @@ async function displayMainMenu(): Promise<string> {
         console.log(chalk.white("├─────────────────────────────────────────────────────────────────────────────┤"));
         console.log(chalk.white("│ 1. 🆕 Create New Wallet                                                    │"));
         console.log(chalk.white("│ 2. 📥 Import Wallet from Mnemonic                                          │"));
-        console.log(chalk.white("│ 3. 🗂️  Manage Wallet                                                       │"));
+        console.log(chalk.white("│ 3. 🗂️  Manage Wallet                                                        │"));
         console.log(chalk.white("│ 4. 💰 Check Balance                                                        │"));
         console.log(chalk.white("│ 5. 📤 Send Transaction                                                     │"));
         console.log(chalk.white("│ 6. 📋 Transaction History                                                  │"));
-        console.log(chalk.white("│ 7. ⚙️  Settings                                                            │"));
+        console.log(chalk.white("│ 7. ⚙️  Settings                                                             │"));
         console.log(chalk.white("│ 8. ❌ Exit Program                                                         │"));
         console.log(chalk.white("└─────────────────────────────────────────────────────────────────────────────┘"));
         console.log();
@@ -360,11 +365,11 @@ async function displayMainMenu(): Promise<string> {
             {
                 type: "input",
                 name: "choice",
-                message: chalk.blue("Please enter your choice (0-8):"),
+                message: chalk.blue("Please enter your choice (1-8):"),
                 validate: (input: string) => {
                     const choice = parseInt(input);
-                    if (isNaN(choice) || choice < 0 || choice > 8) {
-                        return "Please enter a number between 0 and 8.";
+                    if (isNaN(choice) || choice < 1 || choice > 8) {
+                        return "Please enter a number between 1 and 8. (or press Ctrl+C to exit)";
                     }
                     return true;
                 }
@@ -886,7 +891,6 @@ async function main() {
         const choice = await displayMainMenu();
 
         switch (choice) {
-            case "0":
             case "8":
                 console.log(chalk.green.bold("\nTHANK YOU for using EtherVault3 CLI!"));
                 console.log(chalk.green.bold("GOODBYE!!"));

@@ -12,6 +12,11 @@ let currentWalletId: string | null = null;
 
 // Error handling utilities
 function handleWalletError(error: any, context: string): void {
+    // Gracefully handle user-initiated cancel (Ctrl+C)
+    if (error && (error.name === 'ExitPromptError' || error.code === 'SIGINT')) {
+        console.log(chalk.cyan('\nOperation cancelled by user.'));
+        return;
+    }
     // Determine user-friendly message based on error type
     let userMessage = "An unexpected error occurred. Please try again.";
     
@@ -107,12 +112,12 @@ export async function importWallet() {
                 message: "Enter your 12/24 mnemonic phrase:",
                 validate: (input: string) => {
                     if (!input || input.trim().length === 0) {
-                        return "Please enter a mnemonic phrase.";
+                        return "Please enter a mnemonic phrase. (or press Ctrl+C to exit)";
                     }
                     
                     const words = input.trim().split(/\s+/);
                     if (words.length !== 12 && words.length !== 24) {
-                        return "Mnemonic must be 12 or 24 words.";
+                        return "Mnemonic must be 12 or 24 words. (or press Ctrl+C to exit)";
                     }
                     
                     return true;
@@ -359,7 +364,7 @@ export async function checkBalance() {
                         ethers.getAddress(input.trim());
                         return true;
                     }catch{
-                        return "Invalid address. Please enter a valid Ethereum address.";
+                        return "Invalid address. Please enter a valid Ethereum address. (or press Ctrl+C to exit)";
                     }
                 }
             },
@@ -400,7 +405,7 @@ export async function sendTransaction() {
                 message: "Enter your private key:",
                 validate: (input: string) => {
                     if (!input || input.trim().length === 0) {
-                        return "Please enter a private key.";
+                        return "Please enter a private key. (or press Ctrl+C to exit)";
                     }
                     try {
                         // Remove '0x' prefix if present for validation
@@ -408,14 +413,14 @@ export async function sendTransaction() {
                         
                         // Check if it's a valid hex string of correct length (64 characters for 32 bytes)
                         if (!/^[0-9a-fA-F]{64}$/.test(cleanKey)) {
-                            return "Invalid private key format. Must be 64 hex characters.";
+                            return "Invalid private key format. Must be 64 hex characters. (or press Ctrl+C to exit)";
                         }
                         
                         // Try to create wallet to validate
                         new ethers.Wallet('0x' + cleanKey);
                         return true;
                     } catch {
-                        return "Invalid private key. Please enter a valid private key.";
+                        return "Invalid private key. Please enter a valid private key. (or press Ctrl+C to exit)";
                     }
                 }
             },
@@ -428,7 +433,7 @@ export async function sendTransaction() {
                         ethers.getAddress(input.trim());
                         return true;
                     } catch {
-                        return "Invalid Ethereum address. Please enter a valid address.";
+                        return "Invalid Ethereum address. Please enter a valid address. (or press Ctrl+C to exit)";
                     }
                 }
             },
@@ -439,7 +444,7 @@ export async function sendTransaction() {
                 validate: (input: string) => {
                     const amount = parseFloat(input);
                     if (isNaN(amount) || amount <= 0) {
-                        return "Please enter a valid amount greater than 0.";
+                        return "Please enter a valid amount greater than 0. (or press Ctrl+C to exit)";
                     }
                     return true;
                 }
@@ -460,7 +465,7 @@ export async function sendTransaction() {
                     }
                     const gasPrice = parseFloat(input);
                     if (isNaN(gasPrice) || gasPrice <= 0) {
-                        return "Please enter a valid gas price greater than 0.";
+                        return "Please enter a valid gas price greater than 0. (or press Ctrl+C to exit)";
                     }
                     return true;
                 }
@@ -1057,7 +1062,7 @@ export async function sendAccountTransaction(wallet: any, accountIndex: number):
                         ethers.getAddress(input.trim());
                         return true;
                     } catch {
-                        return "Invalid Ethereum address. Please enter a valid address.";
+                        return "Invalid Ethereum address. Please enter a valid address. (or press Ctrl+C to exit)";
                     }
                 }
             },
@@ -1068,7 +1073,7 @@ export async function sendAccountTransaction(wallet: any, accountIndex: number):
                 validate: (input: string) => {
                     const amount = parseFloat(input);
                     if (isNaN(amount) || amount <= 0) {
-                        return "Please enter a valid amount greater than 0.";
+                        return "Please enter a valid amount greater than 0. (or press Ctrl+C to exit)";
                     }
                     return true;
                 }
@@ -1083,7 +1088,7 @@ export async function sendAccountTransaction(wallet: any, accountIndex: number):
                     }
                     const gasPrice = parseFloat(input);
                     if (isNaN(gasPrice) || gasPrice <= 0) {
-                        return "Please enter a valid gas price greater than 0.";
+                        return "Please enter a valid gas price greater than 0. (or press Ctrl+C to exit)";
                     }
                     return true;
                 }
@@ -1189,7 +1194,8 @@ export async function sendAccountTransaction(wallet: any, accountIndex: number):
         }
 
     } catch (error) {
-        console.log("❌ Error sending transaction:", error);
+        handleWalletError(error, "Send Transaction");
+        console.log("❌ Error sending transaction. Try again later.");
     }
 }
 
@@ -1231,7 +1237,7 @@ export async function getAccountTransactionHistory(wallet: any, accountIndex: nu
             });
 
     } catch (error) {
-        console.log("❌ Failed to load transaction history:", error);
+        console.log("❌ Failed to load transaction history. Try again later.");
     }
 }
 
@@ -1246,7 +1252,7 @@ export async function getAccountSecrets(wallet: any, accountIndex: number): Prom
                 mask: "*",
                 validate: (input: string) => {
                     if (!input || input.trim().length === 0) {
-                        return "Password cannot be empty. Please enter your master password.";
+                        return "Password cannot be empty. Please enter your master password. (or press Ctrl+C to exit)";
                     }
                     return true;
                 }
@@ -1325,23 +1331,23 @@ export async function airdropTokens(wallet: any, accountIndex: number): Promise<
                 message: "Enter recipient addresses (comma-separated):",
                 validate: (input: string) => {
                     if (!input || input.trim().length === 0) {
-                        return "Please enter at least one recipient address.";
+                        return "Please enter at least one recipient address. (or press Ctrl+C to exit)";
                     }
                     
                     const addresses = input.split(',').map((addr: string) => addr.trim());
                     if (addresses.length === 0) {
-                        return "Please enter at least one recipient address.";
+                        return "Please enter at least one recipient address. (or press Ctrl+C to exit)";
                     }
                     
                     if (addresses.length > 50) {
-                        return "Maximum 50 recipients allowed per airdrop.";
+                        return "Maximum 50 recipients allowed per airdrop. (or press Ctrl+C to exit)";
                     }
                     
                     for (const addr of addresses) {
                         try {
                             ethers.getAddress(addr);
                         } catch {
-                            return `Invalid address: ${addr}`;
+                            return `Invalid address: ${addr} (or press Ctrl+C to exit)`;
                         }
                     }
                     
@@ -1355,7 +1361,7 @@ export async function airdropTokens(wallet: any, accountIndex: number): Promise<
                 validate: (input: string) => {
                     const amount = parseFloat(input);
                     if (isNaN(amount) || amount <= 0) {
-                        return "Please enter a valid amount greater than 0.";
+                        return "Please enter a valid amount greater than 0. (or press Ctrl+C to exit)";
                     }
                     return true;
                 }
@@ -1533,7 +1539,8 @@ export async function airdropTokens(wallet: any, accountIndex: number): Promise<
         }
         
     } catch (error) {
-        console.log("❌ Error during airdrop:", error);
+        handleWalletError(error, "Airdrop Tokens");
+        console.log("❌ Error during airdrop. Try again later.");
     }
 }
 

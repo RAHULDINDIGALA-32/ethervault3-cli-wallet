@@ -85,6 +85,16 @@ npm start
    npm start
    ```
 
+<div align="center">
+  <img
+    src="./ethervault-entry.png"
+    alt="EtherVault3 CLI first-time setup screen"
+    width="900"
+    style="max-width: 100%; height: auto;"
+  />
+  <br/>
+</div>
+
 2. **Create your profile**:
    - Enter a username
    - Set a strong master password (minimum 8 characters)
@@ -101,6 +111,35 @@ npm start
    - Use advanced features like airdrops
 
 ## 📖 Usage Guide
+### How to Use (One-Liner Install)
+
+Linux/macOS (latest release)
+```bash
+curl -fsSL https://raw.githubusercontent.com/RAHULDINDIGALA-32/ethervault3-cli-wallet/main/scripts/install.sh -o install.sh \
+  && chmod +x install.sh \
+  && ./install.sh
+```
+
+Windows (PowerShell, latest release)
+```powershell
+irm https://raw.githubusercontent.com/RAHULDINDIGALA-32/ethervault3-cli-wallet/main/scripts/install.ps1 | iex
+```
+
+Pin a specific version (example v1.0.0):
+- Linux/macOS: `./install.sh v1.0.0`
+- Windows: `irm https://raw.githubusercontent.com/RAHULDINDIGALA-32/ethervault3-cli-wallet/main/scripts/install.ps1 | iex; install.ps1 -Tag v1.0.0`
+
+After installation:
+```bash
+ethervault3
+# or
+ethervault3-cli
+```
+
+Note:
+- Requires Node.js >= 18 and npm.
+- Create a `.env` with `INFURA_PROJECT_ID=...` to enable network access.
+
 
 ### Main Menu Options
 
@@ -115,7 +154,7 @@ npm start
 │ 5. 📤 Send Transaction                                                     │
 │ 6. 📋 Transaction History                                                  │
 │ 7. ⚙️  Settings                                                            │
-│ 8. ❌ Exit Application                                                        │
+│ 8. ❌ Exit Application                                                   │
 └─────────────────────────────────────────────────────────────────────────────┘
 ```
 
@@ -210,6 +249,9 @@ npm run build          # Compile TypeScript to JavaScript
 npm start             # Build and run the application
 npm run dev           # Run in development mode (if configured)
 
+# Support/Reset (Development Only)
+npm run reset:local    # DANGEROUS: Wipes .wallet-storage (uses --yes flag)
+
 # Type Checking
 npx tsc --noEmit      # Check TypeScript without compilation
 
@@ -217,6 +259,24 @@ npx tsc --noEmit      # Check TypeScript without compilation
 npm install           # Install all dependencies
 npm update            # Update dependencies
 ```
+
+### Development/Support: Reset Tool
+
+For local development and support, a reset script is provided to wipe the local wallet storage.
+
+- Location: `scripts/reset.js`
+- Behavior: Deletes the `.wallet-storage` directory after a `--yes` confirmation flag
+- Usage:
+
+```bash
+node scripts/reset.js --yes
+# or
+npm run reset:local
+```
+
+Important:
+- This script is NOT included in the npm package by default (GitHub only)
+- It is destructive – use only in a dev/support context
 
 ### Building from Source
 

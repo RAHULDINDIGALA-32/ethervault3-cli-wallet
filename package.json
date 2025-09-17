@@ -12,7 +12,7 @@
     "start": "tsc && node dist/index.js",
     "build": "tsc",
     "dev": "tsc --watch",
-    "reset": "node reset.js",
+    "reset:local": "node scripts/reset.js --yes",
     "prepublishOnly": "npm run build",
     "test": "echo \"Error: no test specified\" && exit 1"
   },
