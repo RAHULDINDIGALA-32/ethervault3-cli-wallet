@@ -87,7 +87,7 @@ npm start
 
 <div align="center">
   <img
-    src="./ethervault-entry.png"
+    src="./public/ethervault-entry.png"
     alt="EtherVault3 CLI first-time setup screen"
     width="900"
     style="max-width: 100%; height: auto;"
@@ -113,20 +113,20 @@ npm start
 ## 📖 Usage Guide
 ### How to Use (One-Liner Install)
 
-Linux/macOS (latest release)
+Linux/macOS (latest release tarball)
 ```bash
 curl -fsSL https://raw.githubusercontent.com/RAHULDINDIGALA-32/ethervault3-cli-wallet/main/scripts/install.sh -o install.sh \
   && chmod +x install.sh \
   && ./install.sh
 ```
 
-Windows (PowerShell, latest release)
+Windows (PowerShell, latest release tarball)
 ```powershell
 irm https://raw.githubusercontent.com/RAHULDINDIGALA-32/ethervault3-cli-wallet/main/scripts/install.ps1 | iex
 ```
 
 Pin a specific version (example v1.0.0):
-- Linux/macOS: `./install.sh v1.0.0`
+- Linux/macOS: `./install.sh v1.0.0`  → installs `https://github.com/RAHULDINDIGALA-32/ethervault3-cli-wallet/releases/download/v1.0.0/ethervault3-cli-1.0.0.tgz`
 - Windows: `irm https://raw.githubusercontent.com/RAHULDINDIGALA-32/ethervault3-cli-wallet/main/scripts/install.ps1 | iex; install.ps1 -Tag v1.0.0`
 
 After installation:

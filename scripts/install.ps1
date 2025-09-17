@@ -1,6 +1,6 @@
 Param()
 
-Write-Host "Installing EtherVault3 CLI (global) from GitHub Releases" -ForegroundColor Cyan
+Write-Host "Installing EtherVault3 CLI (global) from GitHub Release tarball" -ForegroundColor Cyan
 
 if (-not (Get-Command node -ErrorAction SilentlyContinue)) {
   Write-Error "Node.js is required (v18+). Please install Node.js and retry."
@@ -14,6 +14,7 @@ if (-not (Get-Command npm -ErrorAction SilentlyContinue)) {
 
 $owner = "RAHULDINDIGALA-32"
 $repo  = "ethervault3-cli-wallet"
+$pkg   = "ethervault3-cli"
 
 # Optional tag parameter
 param([string]$Tag)
@@ -30,9 +31,11 @@ if (-not $Tag -or $Tag -eq "") {
 }
 
 Write-Host "Using release tag: $Tag" -ForegroundColor Cyan
-Write-Host "Installing from GitHub: github:$owner/$repo#$Tag" -ForegroundColor Cyan
+$version = $Tag.TrimStart('v')
+$tarball = "https://github.com/$owner/$repo/releases/download/$Tag/$pkg-$version.tgz"
+Write-Host "Downloading and installing: $tarball" -ForegroundColor Cyan
 
-npm i -g "github:$owner/$repo#$Tag"
+npm i -g $tarball
 
 Write-Host "Done. You can now run: ethervault3" -ForegroundColor Green
 Write-Host "Tip: create a .env with INFURA_PROJECT_ID to enable network access." -ForegroundColor Yellow
