@@ -170,7 +170,7 @@ async function setupUser(): Promise<boolean> {
         
         if (isFirstTime) {
             console.log(chalk.bold.blueBright("🔐 First time setup detected!"));
-            console.log(chalk.blue("Please create your user profile and master password.\n"));
+            console.log(chalk.bold.blueBright("Please create your user profile and master password.\n"));
             
             const userSetup = await inquirer.prompt([
                 {
