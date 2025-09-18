@@ -140,6 +140,49 @@ Note:
 - Requires Node.js >= 18 and npm.
 - Create a `.env` with `INFURA_PROJECT_ID=...` to enable network access.
 
+### Provider Setup (Recommended for reliability)
+
+By default, EtherVault3 uses public RPC endpoints (no keys required). These are fine for light usage but can be slow or rate‑limited. For a smoother experience, add your own provider key or custom RPC.
+
+1) Quick start (no key)
+- It “just works” using public RPCs. If you see rate‑limits or intermittent network errors, proceed to step 2 or 3.
+
+2) Add your own provider key (Infura example)
+- Create a free project: `https://app.infura.io`
+- Copy your Project ID
+- Create a `.env` file in the directory where you run the CLI and add:
+
+```env
+INFURA_PROJECT_ID=your_infura_project_id_here
+```
+
+- Restart the CLI. Networks will resolve to:
+  - mainnet: `https://mainnet.infura.io/v3/${INFURA_PROJECT_ID}`
+  - sepolia: `https://sepolia.infura.io/v3/${INFURA_PROJECT_ID}`
+  - goerli: `https://goerli.infura.io/v3/${INFURA_PROJECT_ID}`
+
+3) Use your own custom RPC(s)
+- Add any HTTPS RPC URL(s) via environment variables (highest priority):
+
+```env
+CUSTOM_MAINNET_RPC=https://your-mainnet-rpc.example
+CUSTOM_SEPOLIA_RPC=https://your-sepolia-rpc.example
+CUSTOM_GOERLI_RPC=https://your-goerli-rpc.example
+```
+
+- These override both public fallbacks and Infura.
+
+How resolution works (per network)
+- 1) `CUSTOM_*_RPC` (if set)
+- 2) `INFURA_PROJECT_ID` (if set)
+- 3) Public fallback (no key) – best‑effort, may rate‑limit
+
+Troubleshooting
+- If you hit 429/rate limits or provider errors:
+  - Add `INFURA_PROJECT_ID` or set a `CUSTOM_*_RPC` in `.env`
+  - Check internet/firewall/VPN settings
+  - Run again after a short delay (public RPCs throttle)
+
 
 ### Main Menu Options
 

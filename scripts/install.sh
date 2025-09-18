@@ -11,6 +11,7 @@ fi
 if ! command -v npm >/dev/null 2>&1; then
   echo "[Error] npm is required. Please install npm and retry." >&2
   exit 1
+  
 fi
 
 # Repo details

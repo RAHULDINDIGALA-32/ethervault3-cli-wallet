@@ -1,3 +1,4 @@
+#!/usr/bin/env node
 import inquirer from "inquirer";
 import chalk from "chalk";
 import { createWallet, importWallet, checkBalance, sendTransaction, showTransactionHistory, manageWallets, checkAccountBalance, sendAccountTransaction, getAccountTransactionHistory, getAccountSecrets, airdropTokens } from "./wallet.js";
@@ -211,6 +212,14 @@ async function setupUser(): Promise<boolean> {
             console.log(chalk.green("✅ User profile created successfully!"));
             console.log(chalk.yellow("⚠️  IMPORTANT: Remember your master password! You'll need it every time you use the wallet."));
             console.log(chalk.yellow("⚠️  If you forget it, you'll lose access to all stored wallets.\n"));
+
+            // Provider setup guidance for first‑time users
+            console.log(chalk.cyan("ℹ️  Network access tip:"));
+            console.log(chalk.cyan("   EtherVault3 works out of the box via public RPCs, but for reliability:"));
+            console.log(chalk.cyan("   - Add INFURA_PROJECT_ID in a .env file, or"));
+            console.log(chalk.cyan("   - Set CUSTOM_*_RPC URLs in .env (Mainnet/Sepolia/Goerli)."));
+            console.log(chalk.cyan("   See Provider Setup in README:"));
+            console.log(chalk.yellow("   https://github.com/RAHULDINDIGALA-32/ethervault3-cli-wallet#provider-setup-recommended-for-reliability\n"));
             
         } else {
             // Load existing user data

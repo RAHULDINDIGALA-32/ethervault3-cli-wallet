@@ -5,7 +5,7 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
-## [1.0.0] - 2025-09-20
+## [1.0.0] - 2025-09-17
 
 ### Added
 - **Initial Release** 🎉 - First stable release of EtherVault3 CLI
@@ -59,6 +59,23 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - **Testing Ready**: Structure prepared for unit and integration tests
 - **Documentation**: Extensive README and code documentation
 
+
+---
+
+## [1.0.1] - 2025-09-20
+
+### Added
+- One-liner installers for GitHub Releases (scripts/install.sh, scripts/install.ps1) with version pinning
+- Provider fallback strategy: `CUSTOM_*_RPC` → `INFURA_PROJECT_ID` → public RPCs (no key)
+- First‑time setup tip in app linking to README Provider Setup
+- Consistent colored logging and friendly cancel handling (Ctrl+C) across prompts
+
+### Fixed
+- CLI shebang added so `ethervault3` runs in the terminal (no editor opening)
+- Validation messages updated to include “(or press Ctrl+C to exit)”
+
+### Docs
+- README: Provider Setup section, installer instructions, and first‑time setup screenshot
 
 ---
 
