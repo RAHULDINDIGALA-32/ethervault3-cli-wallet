@@ -8,6 +8,23 @@ import * as fs from 'fs';
 import * as path from 'path';
 import { HDNodeWallet, ethers } from "ethers";
 
+import { fileURLToPath } from 'url';
+
+// Resolve app version dynamically from package.json (works for global installs)
+function getAppVersion(): string {
+    try {
+        const __filename = fileURLToPath(import.meta.url);
+        const __dirname = path.dirname(__filename);
+        const pkgPath = path.resolve(__dirname, "..", "package.json");
+        if (fs.existsSync(pkgPath)) {
+            const pkg = JSON.parse(fs.readFileSync(pkgPath, 'utf8'));
+            return pkg.version || "";
+        }
+    } catch {}
+    return "";
+}
+const APP_VERSION = getAppVersion();
+
 // Global user data
 let currentUser: { username: string; isFirstTime: boolean } | null = null;
 
@@ -52,7 +69,7 @@ function handleError(error: any, context: string): void {
 async function safeExecute<T>(operation: () => Promise<T>, context: string): Promise<T | null> {
     try {
         return await operation();
-    } catch (error) {
+    } catch (error: any) {
         handleError(error, context);
         return null;
     }
@@ -61,7 +78,7 @@ async function safeExecute<T>(operation: () => Promise<T>, context: string): Pro
 function safeExecuteSync<T>(operation: () => T, context: string): T | null {
     try {
         return operation();
-    } catch (error) {
+    } catch (error: any) {
         handleError(error, context);
         return null;
     }
@@ -113,7 +130,7 @@ async function checkAuthenticationState(): Promise<boolean> {
             }
         }
         return true;
-    } catch (error) {
+    } catch (error: any) {
         log.error(LogCategory.AUTH, "Authentication process failed", error);
         return false;
     }
@@ -138,7 +155,7 @@ function displayTitleScreen() {
     console.log(chalk.bold.cyanBright("    ╚══════╝   ╚═╝   ╚═╝  ╚═╝╚══════╝╚═╝  ╚═╝  ╚═══╝  ╚═╝  ╚═╝ ╚═════╝ ╚══════╝╚═╝   ╚═════╝ "));
     console.log("\n");
     console.log(chalk.cyan("Web3 CLI Wallet Application"));
-    console.log(chalk.yellow("Version 1.0.0"));
+    console.log(chalk.yellow(`Version ${APP_VERSION || '1.x'}`));
     console.log(chalk.green("Author: RAHUL DINDIGALA (Web3 Developer)"));
     console.log(chalk.yellow("GitHub: https://github.com/RAHULDINDIGALA-32/ethervault3-cli-wallet"));
     console.log("\n");
@@ -265,7 +282,11 @@ async function setupUser(): Promise<boolean> {
         }
         
         return true;
-    } catch (error) {
+    } catch (error: any) {
+        if (error && (error.name === 'ExitPromptError' || error.code === 'SIGINT')) {
+            console.log(chalk.cyan('\nOperation cancelled by user.'));
+            return false;
+        }
         console.log(chalk.red("❌ Failed to setup user:", error));
         return false;
     }
@@ -335,7 +356,7 @@ async function setupMasterPassword(): Promise<boolean> {
                 return true;
             }
         }
-    } catch (error) {
+    } catch (error: any) {
         console.log(chalk.red("❌ Failed to setup master password:", error));
         return false;
     }
@@ -386,7 +407,7 @@ async function displayMainMenu(): Promise<string> {
         ]);
 
         return answer.choice;
-    } catch (error) {
+    } catch (error: any) {
         handleError(error, "Main Menu Display");
         return "8"; // Return exit option on error
     }
@@ -445,7 +466,7 @@ async function manageWalletMenu(): Promise<void> {
         // Wallet submenu
         await walletSubMenu(selectedWallet);
         
-    } catch (error) {
+    } catch (error: any) {
         handleError(error, "Wallet Management");
     }
 }
@@ -492,7 +513,7 @@ async function walletSubMenu(wallet: any): Promise<void> {
                 await accountSubMenu(wallet, accountIndex);
                 break;
         }
-    } catch (error) {
+    } catch (error: any) {
         handleError(error, "Wallet Submenu");
     }
 }
@@ -542,7 +563,7 @@ async function accountSubMenu(wallet: any, accountIndex: number): Promise<void> 
             case "main":
                 return;
         }
-    } catch (error) {
+    } catch (error: any) {
         handleError(error, "Account Submenu");
     }
 }
@@ -604,7 +625,7 @@ async function createNewAccount(wallet: any): Promise<void> {
         console.log(`Network: ${networkAnswer.network}`);
         console.log("=".repeat(40));
         
-    } catch (error) {
+    } catch (error: any) {
         console.log("❌ Failed to create new account:", error);
     }
 }
@@ -675,7 +696,7 @@ async function showWalletSecrets(wallet: any): Promise<void> {
         
         console.log("\n⚠️  WARNING: Keep this information secure and never share it!");
         
-    } catch (error) {
+    } catch (error: any) {
         handleError(error, "Show Wallet Secrets");
     }
 }
@@ -753,7 +774,7 @@ async function showSettings(): Promise<void> {
             case "back":
                 return;
         }
-    } catch (error) {
+    } catch (error: any) {
         handleError(error, "Settings");
     }
 }
@@ -816,7 +837,7 @@ async function changeMasterPassword(): Promise<void> {
 
         await secureStorage.setMasterPassword(newPasswordAnswer.newPassword);
         console.log("✅ Master password changed successfully!");
-    } catch (error) {
+    } catch (error: any) {
         handleError(error, "Change Master Password");
     }
 }
@@ -874,7 +895,7 @@ async function clearAllData(): Promise<void> {
         } else {
             console.log("❌ Data deletion cancelled.");
         }
-    } catch (error) {
+    } catch (error: any) {
         handleError(error, "Clear All Data");
     }
 }

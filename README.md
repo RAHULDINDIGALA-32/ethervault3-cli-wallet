@@ -9,7 +9,7 @@
     ╚══════╝   ╚═╝   ╚═╝  ╚═╝╚══════╝╚═╝  ╚═╝  ╚═══╝  ╚═╝  ╚═╝ ╚═════╝ ╚══════╝╚═╝   ╚═════╝ 
 ```
 
-[![Version](https://img.shields.io/badge/version-1.0.0-blue.svg)](https://github.com/RAHULDINDIGALA-32/ethervault3-cli-wallet)
+[![Version](https://img.shields.io/badge/version-1.0.1-blue.svg)](https://github.com/RAHULDINDIGALA-32/ethervault3-cli-wallet)
 [![License](https://img.shields.io/badge/license-MIT-green.svg)](LICENSE)
 [![Node.js](https://img.shields.io/badge/node.js-18+-green.svg)](https://nodejs.org/)
 [![TypeScript](https://img.shields.io/badge/typescript-5.0+-blue.svg)](https://www.typescriptlang.org/)
@@ -125,9 +125,9 @@ Windows (PowerShell, latest release tarball)
 irm https://raw.githubusercontent.com/RAHULDINDIGALA-32/ethervault3-cli-wallet/main/scripts/install.ps1 | iex
 ```
 
-Pin a specific version (example v1.0.0):
-- Linux/macOS: `./install.sh v1.0.0`  → installs `https://github.com/RAHULDINDIGALA-32/ethervault3-cli-wallet/releases/download/v1.0.0/ethervault3-cli-1.0.0.tgz`
-- Windows: `irm https://raw.githubusercontent.com/RAHULDINDIGALA-32/ethervault3-cli-wallet/main/scripts/install.ps1 | iex; install.ps1 -Tag v1.0.0`
+Pin a specific version (example v1.0.1):
+- Linux/macOS: `./install.sh v1.0.1`  → installs `https://github.com/RAHULDINDIGALA-32/ethervault3-cli-wallet/releases/download/v1.0.1/ethervault3-cli-1.0.1.tgz`
+- Windows: `irm https://raw.githubusercontent.com/RAHULDINDIGALA-32/ethervault3-cli-wallet/main/scripts/install.ps1 | iex; install.ps1 -Tag v1.0.1`
 
 After installation:
 ```bash

@@ -1,6 +1,6 @@
 {
   "name": "ethervault3-cli",
-  "version": "1.0.0",
+  "version": "1.0.1",
   "description": "EtherVault3 CLI – a secure Ethereum-only HD wallet for the terminal with AES-256 encryption, multi-account management, airdrops, and full transaction history",
   "main": "dist/index.js",
   "type": "module",
