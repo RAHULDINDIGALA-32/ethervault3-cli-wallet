@@ -262,7 +262,7 @@ We follow [Semantic Versioning](https://semver.org/):
 ### Contact
 - **Author**: RAHUL DINDIGALA
 - **GitHub**: [@RAHULDINDIGALA-32](https://github.com/RAHULDINDIGALA-32)
-- **Email**: rahul.dindigala32@outlook.com
+- **Email**: rahul.dindigala.dev@gmail.com
 
 ## 📄 License
 
